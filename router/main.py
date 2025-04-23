@@ -3,6 +3,8 @@ from fastapi import FastAPI, Request, Response, status, Depends, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_limiter.depends import RateLimiter
+from fastapi_limiter import FastAPILimiter
+import redis.asyncio as redis
 from router.settings import get_settings
 from router.security import api_key_auth
 from router.cache import get_cache, make_cache_key
@@ -103,6 +105,12 @@ async def chat_completions(request: Request, body: dict = Body(...)):
     # Cache response
     await cache.set(cache_key, str(response), ex=settings.cache_ttl_seconds)
     return JSONResponse(status_code=200, content=response)
+
+@app.on_event("startup")
+async def startup_event():
+    redis_url = os.getenv("REDIS_URL", "redis://iir-redis:6379/0")
+    redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+    await FastAPILimiter.init(redis_client)
 
 @app.get("/metrics")
 def metrics():

@@ -6,4 +6,5 @@ vllm_base_url: "http://vllm:8000"
 cache_ttl_seconds: 3600
 rate_limit_rpm: 1000
 max_request_tokens: 8192
+REDIS_URL: "redis://iir-redis:6379/0"
 # provider_priority and external_providers for future phases

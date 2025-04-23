@@ -3,6 +3,18 @@
 ## Authentication
 - All endpoints except `/health` and `/metrics` require: `Authorization: Bearer <API_KEY>`
 
+## API Key Generation
+
+To generate a secure API key for use with the Intelligent Inference Router, use the provided script:
+
+```sh
+npm run generate-api-key
+# or directly:
+python generate_api_key.py --length 40 --prefix myservice
+```
+
+Copy the generated key into your `.env` file as `ROUTER_API_KEY` (or add to `ROUTER_ALLOWED_API_KEYS` for multiple keys).
+
 ## Endpoints
 - `GET /health`: Health check
 - `GET /v1/models`: List available models

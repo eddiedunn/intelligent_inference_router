@@ -3,6 +3,7 @@ fastapi
 uvicorn[standard]
 redis[hiredis]
 pydantic
+pydantic-settings
 python-dotenv
 PyYAML
 prometheus_client

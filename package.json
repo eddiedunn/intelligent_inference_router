@@ -1,0 +1,10 @@
+{
+  "name": "intelligent-inference-router",
+  "version": "1.0.0",
+  "description": "MVP for Intelligent Inference Router (IIR)",
+  "scripts": {
+    "generate-api-key": "python generate_api_key.py"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
