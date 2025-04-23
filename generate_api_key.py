@@ -28,22 +28,28 @@ def generate_key(length=DEFAULT_KEY_LENGTH, prefix=None):
 
 
 def set_env_key(env_path, api_key, key_name="ROUTER_API_KEY"):
-    """Set (or replace) the API key in a .env-style file."""
+    """Set (or replace) the API key in a .env-style file, preserving all other lines and comments."""
     backup_path = env_path.with_suffix(env_path.suffix + ".bak")
     if env_path.exists():
         shutil.copy(env_path, backup_path)
         with open(env_path, "r") as f:
             lines = f.readlines()
         found = False
+        new_lines = []
+        for line in lines:
+            # Preserve comments and blank lines exactly
+            if line.strip().startswith(f"{key_name}="):
+                new_lines.append(f"{key_name}={api_key}\n")
+                found = True
+            else:
+                new_lines.append(line)
+        if not found:
+            # Add API key at the end, but preserve a trailing newline if present
+            if new_lines and new_lines[-1] and not new_lines[-1].endswith("\n"):
+                new_lines[-1] = new_lines[-1] + "\n"
+            new_lines.append(f"{key_name}={api_key}\n")
         with open(env_path, "w") as f:
-            for line in lines:
-                if line.startswith(f"{key_name}="):
-                    f.write(f"{key_name}={api_key}\n")
-                    found = True
-                else:
-                    f.write(line)
-            if not found:
-                f.write(f"{key_name}={api_key}\n")
+            f.writelines(new_lines)
     else:
         with open(env_path, "w") as f:
             f.write(f"{key_name}={api_key}\n")
