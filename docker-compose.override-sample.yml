@@ -1,0 +1,18 @@
+# Example override for running a second stack on the same host
+# Usage:
+#   COMPOSE_PROJECT_NAME=stack2 docker compose -f docker-compose.yml -f docker-compose.override-sample.yml up -d
+
+services:
+  iir-redis:
+    ports:
+      - "6380:6379"
+  # Uncomment and adjust if you add Prometheus or Grafana services:
+  # prometheus:
+  #   ports:
+  #     - "9091:9090"
+  # grafana:
+  #   ports:
+  #     - "3001:3000"
+  router:
+    ports:
+      - "8001:8000"  # Expose API on a different port for this stack

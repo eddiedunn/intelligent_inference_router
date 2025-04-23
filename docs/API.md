@@ -76,6 +76,29 @@ Response (error):
 ## Rate Limiting
 - Exceeding per-IP limit returns 429 with body `{ "detail": "Rate limit exceeded" }`
 
+## Remote Log Debugging
+
+To forward all logs to a remote UDP listener for debugging:
+
+1. Set `REMOTE_LOG_SINK` in your `.env`:
+   ```
+   REMOTE_LOG_SINK=1.2.3.4:9999
+   ```
+2. Start your log listener on the remote host:
+   ```python
+   import socket
+   sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+   sock.bind(("0.0.0.0", 9999))
+   while True:
+       data, addr = sock.recvfrom(4096)
+       print(data.decode(), end="")
+   ```
+3. Run `make deploy-test` or `make logs` in your project. Logs will be streamed to the remote listener.
+
+**Note:** The sender (log forwarder) is implemented in `forward_logs_udp.py` and does not require any third-party packages—just Python 3.6+ standard library. The listener is also pure Python and can be run as shown above.
+
+**Security Note:** Only use this for debugging in trusted environments, as logs may contain sensitive information.
+
 ## Metrics
 - Prometheus metrics available at `/metrics` (see Monitoring doc)
 
