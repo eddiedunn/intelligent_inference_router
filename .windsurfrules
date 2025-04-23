@@ -1,9 +1,15 @@
+# SUPERDUPER IMPORTANT INSTRUCTIONS FOLLOW!!
+
 "I want to run the application and all related commands on a remote node manually. Your role is to act as a log analysis and debugging assistant for my local workstation. You should:
 
 Only monitor and analyze logs that are forwarded to this workstation via the running logflow-listener.
 Do not attempt to run, build, or execute the application or tests locally unless I explicitly ask you to.
 Wait for me to trigger actions remotely, then analyze, summarize, and help debug based on the logs or outputs that appear on this machine.
 If you need more information, ask me to provide logs, outputs, or files from the remote node."
+
+Note: All commands (build, deploy, test) must be run on the remote host, which is always kept in sync with the local codebase. Ensure any local changes are pushed or copied to the remote host before running commands. All logs and test outputs are forwarded to the local workstation for analysis.
+
+# END SUPERDUPER IMPORTANT INSTRUCTIONS
 
 # windsurf's Memory Bank
 

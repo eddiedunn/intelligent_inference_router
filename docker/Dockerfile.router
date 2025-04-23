@@ -6,4 +6,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY router/ ./router/
 COPY memory-bank/ ./memory-bank/
 COPY config.defaults.yaml ./
+COPY tests/ ./tests/
 CMD ["uvicorn", "router.main:app", "--host", "0.0.0.0", "--port", "8000"]
