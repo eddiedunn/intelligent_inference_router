@@ -76,6 +76,22 @@ Response (error):
 ## Rate Limiting
 - Exceeding per-IP limit returns 429 with body `{ "detail": "Rate limit exceeded" }`
 
+## Common Pitfalls & Troubleshooting
+
+- **401 Unauthorized / 403 Forbidden:**
+  - Did you set `ROUTER_API_KEY` in your `.env` and client config?
+  - Are you passing the correct `Authorization: Bearer <API_KEY>` header?
+- **429 Too Many Requests:**
+  - Rate limit exceeded. Wait and retry, or check your per-IP rate limit settings.
+- **Connection Refused / Port in Use:**
+  - Is another stack running on the same ports? Use Docker Compose override files and unique project names.
+- **Redis Not Connecting:**
+  - Double-check your `REDIS_URL` and that the right Redis container is running.
+- **Log Forwarding Not Working:**
+  - Is `REMOTE_LOG_SINK` set in your `.env`? Is your UDP listener running and accessible?
+
+See `docs/TROUBLESHOOTING.md` for more.
+
 ## Remote Log Debugging
 
 To forward all logs to a remote UDP listener for debugging:

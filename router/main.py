@@ -20,6 +20,19 @@ import logging
 import os
 import asyncio
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from router.log_udp_handler import UDPSocketHandler
+
+# Attach UDP log handler if REMOTE_LOG_SINK is set
+def configure_udp_logging():
+    sink = os.getenv("REMOTE_LOG_SINK")
+    if sink:
+        handler = UDPSocketHandler()
+        formatter = logging.Formatter('[%(asctime)s] %(levelname)s %(name)s: %(message)s')
+        handler.setFormatter(formatter)
+        logging.getLogger().addHandler(handler)
+        logging.getLogger().info(f"UDP log forwarding enabled to {sink}")
+
+configure_udp_logging()
 
 app = FastAPI(title="Intelligent Inference Router", version="1.0")
 
