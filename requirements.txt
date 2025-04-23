@@ -14,4 +14,4 @@ accelerate
 bitsandbytes
 fastapi-limiter
 pytest
-git+ssh://git@github.com/eddiedunn/logflow.git@main#egg=logflow
+git+https://github.com/eddiedunn/logflow.git@main#egg=logflow
