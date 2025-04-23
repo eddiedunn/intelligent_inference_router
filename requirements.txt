@@ -1,0 +1,15 @@
+# Python requirements for IIR MVP Phase 1a
+fastapi
+uvicorn[standard]
+redis[hiredis]
+pydantic
+python-dotenv
+PyYAML
+prometheus_client
+httpx
+transformers
+torch
+accelerate
+bitsandbytes
+fastapi-limiter
+pytest

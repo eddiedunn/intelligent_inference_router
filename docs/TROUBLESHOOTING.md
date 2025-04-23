@@ -1,0 +1,15 @@
+# Troubleshooting: IIR MVP Phase 1a
+
+## Common Issues
+- **Docker fails to build:** Check NVIDIA drivers, toolkit, and Docker versions
+- **vLLM not starting:** Check model ID, GPU availability, and logs
+- **Redis connection errors:** Verify Redis service is running and `REDIS_URL` is correct
+- **API returns 401/403:** Confirm API key in `.env` and request headers
+- **Rate limiting (429):** Increase `rate_limit_rpm` in config if needed
+- **Classifier errors (503):** Check RAM/VRAM, model download, and logs
+
+## Debugging Steps
+- View logs: `docker compose logs -f router`
+- Health check: `curl http://localhost:8000/health`
+- Check metrics: Prometheus at `http://localhost:9090`
+- Dashboard: Grafana at `http://localhost:3000`

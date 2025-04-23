@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  router:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.router
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - vllm
+    volumes:
+      - ./memory-bank:/app/memory-bank:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+  vllm:
+    image: vllm/vllm-openai:latest
+    command: ["--model", "meta-llama/Meta-Llama-3-8B-Instruct"]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    ports:
+      - "8001:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
