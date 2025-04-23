@@ -64,6 +64,29 @@
      make deploy-test
      ```
 
+## Hugging Face Token for Gated Models
+
+Some models (such as Meta Llama 3) are gated on Hugging Face and require authentication to download.
+
+If you see errors like `401 Unauthorized` or `Cannot access gated repo` in your logs, you must:
+
+1. **Request access** to the model at: https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct
+2. **Get your Hugging Face access token**: https://huggingface.co/settings/tokens
+3. **Add your token to the `.env` file**:
+   ```sh
+   HF_TOKEN=your_huggingface_token_here
+   ```
+4. **Restart the stack**:
+   ```sh
+   make deploy-test
+   # or
+   docker compose up -d
+   ```
+
+If you do not add this token, the vLLM container will fail to start and you will see repeated authentication errors in the logs.
+
+---
+
 5. **Build and start the stack**
    ```sh
    docker compose build

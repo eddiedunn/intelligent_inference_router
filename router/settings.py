@@ -12,7 +12,17 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(...)
     rate_limit_rpm: int = Field(...)
     max_request_tokens: int = Field(...)
-    model_config = SettingsConfigDict(env_prefix="ROUTER_", env_file=".env")
+    REDIS_URL: str = Field(...)
+    LOG_LEVEL: str = Field(default="INFO")
+    ROUTER_API_KEY: str = Field(...)
+    ROUTER_LOG_FULL_CONTENT: bool = Field(default=False)
+    REMOTE_LOG_SINK: str = Field(default=None)
+    HF_TOKEN: str = Field(default=None)
+    # Optionally include these if needed in codebase:
+    # ROUTER_ALLOWED_API_KEYS: str = Field(default=None)
+    # OPENAI_API_KEY: str = Field(default=None)
+    # ANTHROPIC_API_KEY: str = Field(default=None)
+    model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
     @classmethod
     def from_yaml(cls, path="config.defaults.yaml"):
