@@ -30,8 +30,7 @@ def patch_provider_clients(monkeypatch):
     ("openrouter-1", "openrouter"),
     ("openllama-1", "openllama"),
 ])
-def test_routing_remote_models(model, expected_provider, test_api_key):
-    client = TestClient(app)
+def test_routing_remote_models(client, model, expected_provider, test_api_key):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]

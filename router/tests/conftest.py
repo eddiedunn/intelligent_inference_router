@@ -36,3 +36,8 @@ def override_rate_limiter_dependency():
         main.app.dependency_overrides[RateLimiter] = original_override
     else:
         main.app.dependency_overrides.pop(RateLimiter, None)
+
+@pytest.fixture
+def client():
+    from router.main import app
+    return TestClient(app)
