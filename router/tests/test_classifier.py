@@ -14,8 +14,8 @@ def test_api_key():
 
 @pytest.mark.asyncio
 def test_classify_prompt_basic(test_api_key):
-    headers = {"Authorization": f"Bearer {test_api_key}"}
-    result = asyncio.run(classify_prompt("generate music", headers=headers)) if asyncio.iscoroutinefunction(classify_prompt) else classify_prompt("generate music", headers=headers)
+    # Remove headers argument, classify_prompt does not accept it
+    result = asyncio.run(classify_prompt("generate music")) if asyncio.iscoroutinefunction(classify_prompt) else classify_prompt("generate music")
     assert isinstance(result, str)
     assert result in ("musicgen", "textgen", "unknown", "local")
 
