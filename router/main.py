@@ -200,8 +200,12 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
     provider = None
     model_l = model.lower()
     for prefix, name in provider_map.items():
-        if model_l.startswith(prefix) or model_l.split("-", 1)[0] == prefix:
+        match_prefix = model_l.startswith(prefix)
+        match_hyphen = model_l.split("-", 1)[0] == prefix
+        logger.info(f"[DEBUG] Mapping check: model='{model_l}', prefix='{prefix}', match_prefix={match_prefix}, match_hyphen={match_hyphen}")
+        if match_prefix or match_hyphen:
             provider = name
+            logger.info(f"[DEBUG] Model '{model}' matched prefix '{prefix}' to provider '{provider}'")
             break
     logger.info(f"[DEBUG] Model '{model}' routed to provider: {provider}")
     if not provider:
@@ -209,6 +213,7 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
         router_requests_errors_total.inc()
         return JSONResponse(status_code=400, content={"detail": f"Unknown remote provider for model: {model}"})
     client = PROVIDER_CLIENTS[provider]
+    logger.info(f"[DEBUG] Using client: {client} for provider: {provider}")
     try:
         result = await client.chat_completions(body, model)
         logger.info("Remote provider call succeeded", extra={"event": "provider_success", "provider": provider})
