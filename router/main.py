@@ -208,6 +208,11 @@ if MOCK_PROVIDERS:
         return Dummy()
     for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
         cls.chat_completions = dummy_chat_completions
+    # Patch local model as well
+    import router.providers.local_vllm
+    async def dummy_generate_local(body):
+        return {"result": "Hello!"}
+    router.providers.local_vllm.generate_local = dummy_generate_local
 
 @app.on_event("startup")
 async def startup_event():
