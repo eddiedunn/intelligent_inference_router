@@ -1,7 +1,5 @@
 import pytest
 import asyncio
-from httpx import AsyncClient
-from asgi_lifespan import LifespanManager
 from router.main import app
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
@@ -32,23 +30,21 @@ def patch_provider_clients(monkeypatch):
     ("openllama-1", "openllama"),
 ])
 @pytest.mark.asyncio
-async def test_routing_remote_models(model, expected_provider, test_api_key):
+async def test_routing_remote_models(async_client, model, expected_provider, test_api_key):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    async with LifespanManager(app):
-        async with AsyncClient(app=app, base_url="http://test") as ac:
-            resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["object"] == "chat.completion"
-            assert data["choices"][0]["message"]["content"] == "Hello!"
+    resp = await async_client.post("/v1/chat/completions", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["object"] == "chat.completion"
+    assert data["choices"][0]["message"]["content"] == "Hello!"
 
 # Test local path (musicgen)
 @pytest.mark.asyncio
-async def test_routing_local_model(monkeypatch, test_api_key):
+async def test_routing_local_model(monkeypatch, async_client, test_api_key):
     # Patch generate_local to return a dummy response
     monkeypatch.setattr("router.providers.local_vllm.generate_local", lambda body: {"result": "local"})
     payload = {
@@ -56,23 +52,19 @@ async def test_routing_local_model(monkeypatch, test_api_key):
         "messages": [{"role": "user", "content": "hi"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    async with LifespanManager(app):
-        async with AsyncClient(app=app, base_url="http://test") as ac:
-            resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
-            assert resp.status_code == 200
-            # Accept either new or old format
-            assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
+    resp = await async_client.post("/v1/chat/completions", json=payload, headers=headers)
+    assert resp.status_code == 200
+    # Accept either new or old format
+    assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
 
 # Test error on unknown model prefix
 @pytest.mark.asyncio
-async def test_routing_unknown_model(test_api_key):
+async def test_routing_unknown_model(async_client, test_api_key):
     payload = {
         "model": "foo-unknown",
         "messages": [{"role": "user", "content": "hi"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    async with LifespanManager(app):
-        async with AsyncClient(app=app, base_url="http://test") as ac:
-            resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
-            assert resp.status_code == 400
-            assert "Unknown remote provider for model" in resp.text
+    resp = await async_client.post("/v1/chat/completions", json=payload, headers=headers)
+    assert resp.status_code == 400
+    assert "Unknown remote provider for model" in resp.text
