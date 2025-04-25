@@ -1,23 +1,26 @@
 # Active Context: IIR MVP Phase 1a
 
 ## Current Focus
-- Initializing project memory and documentation structure
-- Setting up repository scaffolding and configuration files
-- Preparing for implementation of core router service and Docker deployment
+- Debugging and stabilizing Redis connectivity for test suite and FastAPILimiter integration
+- Ensuring all FastAPILimiter-dependent tests run and pass using a single Redis instance for the suite
+- Decoupling ml_ops: all references, submodules, and dependencies removed from IIR project (2025-04-24)
 
 ## Recent Changes
-- Created project brief and product context documentation
-- Established .windsurfrules for project intelligence tracking
+- Updated event loop handling in test fixtures and minimal Redis tests to use asyncio.run() for Python 3.11+ compatibility
+- Added debug output to FastAPILimiter fixture for connection diagnosis
+- Confirmed minimal Redis ping tests pass; FastAPILimiter tests still skipped due to connection/init issues
+- Updated README and project documentation to reflect ml_ops decoupling
 
 ## Next Steps
-- Complete initialization of all Memory Bank files
-- Scaffold remaining documentation and code directories
-- Begin implementation of FastAPI router and supporting modules
+- Run pytest with -s to capture all debug output from test suite
+- Analyze FastAPILimiter fixture output/logs to pinpoint cause of skipped tests
+- Finalize and document solution for robust Redis + FastAPILimiter test integration
+- Continue monitoring for any further Redis or rate limiting issues
 
 ## Active Decisions
-- Strict adherence to PRD and memory-driven workflow
-- Documentation-first approach for all major features and changes
+- Continue strict documentation-first, memory-driven workflow
+- Project is now fully self-contained; ml_ops is archived/external only
 
 ## Considerations
-- All context must be preserved in memory-bank for future resets
-- Maintain clarity and precision in all documentation updates
+- All context and major changes must be reflected in memory-bank for future resets
+- Maintain clarity and precision in all updates, especially regarding test infra and decoupling

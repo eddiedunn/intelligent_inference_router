@@ -55,7 +55,6 @@ docker-compose.override.yml
 Docker/VSCode/macOS/
 
 # Project-specific
-memory-bank/
 config.defaults.yaml.bak
 
 # Ignore generated files

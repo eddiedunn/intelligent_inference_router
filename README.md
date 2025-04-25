@@ -22,6 +22,12 @@ See `docs/SETUP.md` for prerequisites and setup instructions.
 - `docs/MONITORING.md`: Metrics & dashboards
 - `docs/TROUBLESHOOTING.md`: Common issues
 
+## Project Decoupling: ml_ops
+
+As of 2025-04-24, this project no longer depends on the `ml_ops` repository. All code, tests, and infrastructure for the Intelligent Inference Router are now self-contained. Any prior references to `ml_ops` as a submodule, symlink, or dependency have been removed for clarity and maintainability.
+
+If you require legacy utilities, refer to the archived `ml_ops` repository separately.
+
 ---
 
 For full requirements and context, see the Memory Bank and PRD in `memory-bank/`.

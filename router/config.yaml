@@ -1,0 +1,3 @@
+services:
+  musicgen: http://localhost:3000
+  textgen: http://localhost:3001
