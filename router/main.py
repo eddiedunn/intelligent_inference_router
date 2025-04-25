@@ -187,9 +187,16 @@ def get_rate_limiter():
         traceback.print_exc()
         raise
 
+# Proper dependency for FastAPILimiter
+from starlette.responses import Response
+async def rate_limiter_dep(request: Request):
+    limiter = get_rate_limiter()
+    dummy_response = Response()
+    await limiter(request, dummy_response)
+
 # OpenAI-compatible /v1/chat/completions endpoint
 @app.post("/v1/chat/completions")
-async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(get_rate_limiter)):
+async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(rate_limiter_dep)):
     print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
     try:
         body = await request.json()
@@ -198,7 +205,7 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
 
     # --- Manual Rate Limiting (now testable) ---
     try:
-        await rate_limiter(request)
+        await rate_limiter
     except HTTPException as e:
         if e.status_code == 429:
             return JSONResponse(status_code=429, content={"error": {"message": "Rate limit exceeded", "type": "rate_limit_error", "param": None, "code": "rate_limit_exceeded"}})
