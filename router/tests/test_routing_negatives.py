@@ -10,23 +10,24 @@ async def test_chat_completions_missing_model(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert "Missing required fields" in resp.text
+    assert "Missing required fields" in resp.json()["error"]["message"]
 
 @pytest.mark.asyncio
 async def test_chat_completions_missing_messages(test_api_key):
     payload = {"model": "gpt-3.5-turbo"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
-    if resp.status_code != 400 or "Missing required fields" not in resp.text:
+    if resp.status_code != 400 or "Missing required fields" not in resp.json()["error"]["message"]:
         raise AssertionError(f"[DEBUG] missing_messages resp.status_code={resp.status_code}\n[DEBUG] missing_messages resp.text={resp.text}")
     assert resp.status_code == 400
-    assert "Missing required fields" in resp.text
+    assert "Missing required fields" in resp.json()["error"]["message"]
 
 @pytest.mark.asyncio
 async def test_chat_completions_invalid_payload(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", data="not a json", headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code in (400, 422)
+    assert "Invalid JSON payload" in resp.json()["error"]["message"]
 
 @pytest.mark.asyncio
 async def test_chat_completions_token_limit(test_api_key):
@@ -74,6 +75,6 @@ async def test_chat_completions_unknown_model(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert "Unknown remote provider for model" in resp.text
+    assert "Unknown remote provider for model" in resp.json()["error"]["message"]
 
 # If /v1/completions endpoint exists, add similar negative tests here

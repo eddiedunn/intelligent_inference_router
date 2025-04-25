@@ -233,7 +233,7 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
     print(f"[DEBUG] /v1/chat/completions: MODEL_PROVIDER_MAP={getattr(provider_clients, 'MODEL_PROVIDER_MAP', 'N/A')}")
     print(f"[DEBUG] /v1/chat/completions: computed provider={provider}")
     if not provider:
-        return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
+        return JSONResponse(status_code=400, content={"error": {"message": "Unknown remote provider for model", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
     # --- FORCE MOCK RESPONSE for all recognized providers when MOCK_PROVIDERS=1 ---
     if is_mock_providers():
