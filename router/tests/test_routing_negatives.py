@@ -39,10 +39,11 @@ async def test_chat_completions_token_limit(test_api_key):
 @pytest.mark.asyncio
 async def test_chat_completions_rate_limit_exceeded(test_api_key, monkeypatch):
     from fastapi import HTTPException
-    # Patch get_rate_limiter to always raise HTTPException
-    async def always_429(request):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    monkeypatch.setattr("router.main.get_rate_limiter", lambda: always_429)
+    # Patch get_rate_limiter to always raise HTTPException using a class with async __call__
+    class Always429:
+        async def __call__(self, request):
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    monkeypatch.setattr("router.main.get_rate_limiter", lambda: Always429())
     payload = {"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(app=app, base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})

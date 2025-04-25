@@ -195,6 +195,12 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
             break
     if not provider:
         return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
+
+    # --- MOCK PROVIDERS: always return mock response for any provider ---
+    if MOCK_PROVIDERS:
+        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
+        return JSONResponse(status_code=200, content=response)
+
     if stream:
         async def stream_response() -> AsyncGenerator[bytes, None]:
             try:
@@ -206,6 +212,7 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
                 yield f"data: {{\"error\": {{\"message\": \"{str(e)}\", \"type\": \"server_error\"}}}}\n\n".encode()
         return StreamingResponse(stream_response(), media_type="text/event-stream")
     try:
+        # Real provider call (should not be reached in MOCK_PROVIDERS=1)
         response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
         return JSONResponse(status_code=200, content=response)
     except Exception as e:
