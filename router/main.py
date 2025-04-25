@@ -87,6 +87,27 @@ def configure_udp_logging():
         logging.getLogger().addHandler(handler)
         logging.getLogger().info(f"UDP log forwarding enabled to {sink}")
 
+# --- Dependency for testable rate limiter ---
+def get_rate_limiter():
+    print("[DEBUG] ENTRY: get_rate_limiter dependency called")
+    try:
+        from fastapi_limiter.depends import RateLimiter
+        print("[DEBUG] fastapi_limiter.depends.RateLimiter imported successfully")
+        limiter = RateLimiter(times=100, seconds=60)
+        print(f"[DEBUG] RateLimiter instantiated: {limiter}")
+        return limiter
+    except Exception as e:
+        import traceback
+        print(f"[DEBUG] ERROR in get_rate_limiter: {e}")
+        traceback.print_exc()
+        raise
+
+from starlette.responses import Response
+async def rate_limiter_dep(request: Request):
+    limiter = get_rate_limiter()
+    dummy_response = Response()
+    await limiter(request, dummy_response)
+
 # --- App Factory for Testability ---
 def create_app():
     configure_udp_logging()
@@ -172,28 +193,6 @@ def create_app():
     #         {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai", "permission": []}
     #     ]
     #     return {"object": "list", "data": data}
-
-    # --- Dependency for testable rate limiter ---
-    def get_rate_limiter():
-        print("[DEBUG] ENTRY: get_rate_limiter dependency called")
-        try:
-            from fastapi_limiter.depends import RateLimiter
-            print("[DEBUG] fastapi_limiter.depends.RateLimiter imported successfully")
-            limiter = RateLimiter(times=100, seconds=60)
-            print(f"[DEBUG] RateLimiter instantiated: {limiter}")
-            return limiter
-        except Exception as e:
-            import traceback
-            print(f"[DEBUG] ERROR in get_rate_limiter: {e}")
-            traceback.print_exc()
-            raise
-
-    # Proper dependency for FastAPILimiter
-    from starlette.responses import Response
-    async def rate_limiter_dep(request: Request):
-        limiter = get_rate_limiter()
-        dummy_response = Response()
-        await limiter(request, dummy_response)
 
     # OpenAI-compatible /v1/chat/completions endpoint
     @app.post("/v1/chat/completions")
