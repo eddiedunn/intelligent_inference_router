@@ -165,6 +165,7 @@ def get_rate_limiter():
 # OpenAI-compatible /v1/chat/completions endpoint
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(get_rate_limiter)):
+    print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
     try:
         body = await request.json()
     except Exception:
