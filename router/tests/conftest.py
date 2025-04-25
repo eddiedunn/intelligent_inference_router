@@ -45,7 +45,11 @@ def mock_model_providers(monkeypatch):
     async def dummy_generate_local(*args, **kwargs):
         class DummyResponse:
             status_code = 200
-            content = {"result": "dummy local"}
+            content = {
+                "id": "test-local",
+                "object": "chat.completion",
+                "choices": [{"message": {"content": "Hello from local!"}}]
+            }
         return DummyResponse()
     monkeypatch.setattr(main, "generate_local", dummy_generate_local)
 
@@ -59,12 +63,20 @@ def mock_model_providers(monkeypatch):
     async def dummy_chat_completions(self, payload, model, **kwargs):
         class DummyResponse:
             status_code = 200
-            content = {"result": f"dummy remote {model}"}
+            content = {
+                "id": "test-remote",
+                "object": "chat.completion",
+                "choices": [{"message": {"content": f"Hello from {model}!"}}]
+            }
         return DummyResponse()
     async def dummy_completions(self, payload, model, **kwargs):
         class DummyResponse:
             status_code = 200
-            content = {"result": f"dummy completions {model}"}
+            content = {
+                "id": "test-remote",
+                "object": "text_completion",
+                "choices": [{"text": f"Completion for {model}."}]
+            }
         return DummyResponse()
     # Patch all remote providers
     monkeypatch.setattr(openai_mod.OpenAIClient, "chat_completions", dummy_chat_completions)
