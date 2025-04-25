@@ -103,8 +103,8 @@ def infer(req: InferRequest):
 #     return {"object": "list", "data": data}
 
 # OpenAI-compatible /v1/chat/completions endpoint
-@app.post("/v1/chat/completions", dependencies=[Depends(api_key_auth), Depends(RateLimiter(times=100, seconds=60))])
-async def chat_completions(request: Request, body: dict = Body(...)):
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request, body: dict = Body(...), rate_limiter=Depends(RateLimiter(times=100, seconds=60)), api_key=Depends(api_key_auth)):
     model = body.get("model")
     messages = body.get("messages", [])
     logger = logging.getLogger("router")
