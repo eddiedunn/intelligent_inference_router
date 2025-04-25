@@ -1,3 +1,5 @@
+print("[DEBUG] IMPORT: provider_clients/openrouter.py imported")
+
 import os
 import httpx
 from .base import ProviderClient, ProviderResponse

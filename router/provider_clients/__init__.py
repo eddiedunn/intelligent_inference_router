@@ -1,3 +1,5 @@
+print("[DEBUG] IMPORT: provider_clients/__init__.py imported")
+
 # Provider client base and registry for external LLM routing
 
 from .base import ProviderClient, ProviderResponse
