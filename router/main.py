@@ -151,117 +151,133 @@ def infer(req: InferRequest):
 # OpenAI-compatible /v1/chat/completions endpoint
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request, body: dict = Body(...), rate_limiter=Depends(RateLimiter(times=100, seconds=60)), api_key=Depends(api_key_auth)):
-    logger.info("[DEBUG] HANDLER ENTRY: /v1/chat/completions")
-    # --- DEBUG: Log RateLimiter key info ---
-    client_ip = request.headers.get("X-Forwarded-For") or request.client.host
-    rl_key = f"rl:{client_ip}:{request.url.path}"
-    print(f"[DEBUG] RateLimiter checking key: {rl_key}")
-    model = body.get("model")
-    messages = body.get("messages", [])
+    print("[DEBUG] HANDLER ENTRY: /v1/chat/completions")
+    import logging
     logger = logging.getLogger("router")
-    if not model or not messages:
-        logger.warning("Missing required fields: model or messages", extra={"event": "bad_request"})
-        router_requests_errors_total.inc()
-        return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
-    prompt = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
-    # Token limit enforcement (simple char-based estimate)
-    if len(prompt) > 2048:
-        logger.warning("Request exceeds max token limit", extra={"event": "token_limit"})
-        router_requests_errors_total.inc()
-        return JSONResponse(status_code=413, content={"detail": "Request exceeds max token limit"})
-    # Caching
-    cache = await get_cache()
-    cache_key = make_cache_key(prompt, "", model)
-    cached = await cache.get(cache_key)
-    if cached:
-        try:
-            loaded = json.loads(cached)
-            logger.info("Cache hit", extra={"event": "cache_hit", "cache_key": cache_key})
-            router_cache_hits_total.inc()
-            return JSONResponse(status_code=200, content=loaded)
-        except Exception as e:
-            logger.warning(f"Cache poisoning or legacy value for key {cache_key}: {e}. Deleting and treating as miss.")
-            await cache.delete(cache_key)
-            logger.info("Cache miss (after delete)", extra={"event": "cache_miss", "cache_key": cache_key})
-            router_cache_misses_total.inc()
-    else:
-        logger.info("Cache miss", extra={"event": "cache_miss", "cache_key": cache_key})
-        router_cache_misses_total.inc()
-    # Classification
+    logger.info("[DEBUG] HANDLER ENTRY: /v1/chat/completions")
     try:
-        classification = await classify_prompt(prompt)
-        logger.info("Prompt classified", extra={"event": "classification", "result": classification})
-    except Exception as e:
-        logger.error("Classifier error", extra={"event": "classifier_error", "error": str(e)})
-        router_requests_errors_total.inc()
-        return JSONResponse(status_code=503, content={"detail": "Classifier error: " + str(e)})
-    if classification == "local":
-        # Local vLLM call
-        try:
-            response = await generate_local(body)
-            logger.info("Local vLLM call succeeded", extra={"event": "vllm_success"})
-        except Exception as e:
-            logger.error("Local vLLM backend error", extra={"event": "vllm_error", "error": str(e)})
+        client_ip = request.headers.get("X-Forwarded-For") or request.client.host
+        rl_key = f"rl:{client_ip}:{request.url.path}"
+        print(f"[DEBUG] RateLimiter checking key: {rl_key}")
+        logger.info(f"[DEBUG] RateLimiter checking key: {rl_key}")
+        model = body.get("model")
+        messages = body.get("messages", [])
+        print(f"[DEBUG] Handler received model: {model}")
+        print(f"[DEBUG] Handler received messages: {messages}")
+        logger.info(f"[DEBUG] Handler received model: {model}")
+        logger.info(f"[DEBUG] Handler received messages: {messages}")
+        # --- DEBUG: Log RateLimiter key info ---
+        logger.info("[DEBUG] HANDLER ENTRY: /v1/chat/completions")
+        # --- END DEBUG ---
+        if not model or not messages:
+            logger.warning("Missing required fields: model or messages", extra={"event": "bad_request"})
             router_requests_errors_total.inc()
-            return JSONResponse(status_code=502, content={"detail": "Local vLLM backend error: " + str(e)})
-        # Cache response
-        await cache.set(cache_key, json.dumps(response), ex=3600)
-        return JSONResponse(status_code=200, content=response)
-    # Remote: route to provider
-    from router.provider_clients import PROVIDER_CLIENTS
-    # For now, pick provider by model prefix (could be made more sophisticated)
-    provider_map = {
-        "gpt": "openai",
-        "claude": "anthropic",
-        "grok": "grok",
-        "openrouter": "openrouter",
-        "openllama": "openllama",
-    }
-    provider = None
-    model_l = model.lower()
-    for prefix, name in provider_map.items():
-        match_prefix = model_l.startswith(prefix)
-        match_hyphen = model_l.split("-", 1)[0] == prefix
-        logger.info(f"[DEBUG] Mapping check: model='{model_l}', prefix='{prefix}', match_prefix={match_prefix}, match_hyphen={match_hyphen}")
-        if match_prefix or match_hyphen:
-            provider = name
-            logger.info(f"[DEBUG] Model '{model}' matched prefix '{prefix}' to provider '{provider}'")
-            break
-    logger.info(f"[DEBUG] Model '{model}' routed to provider: {provider}")
-    if not provider:
-        logger.error("Unknown remote provider for model", extra={"event": "provider_error", "model": model})
-        router_requests_errors_total.inc()
-        return JSONResponse(status_code=400, content={"detail": f"Unknown remote provider for model: {model}"})
-    client = PROVIDER_CLIENTS[provider]
-    logger.info(f"[DEBUG] HANDLER: id(PROVIDER_CLIENTS)={id(PROVIDER_CLIENTS)}")
-    for k, v in PROVIDER_CLIENTS.items():
-        logger.info(f"[DEBUG] HANDLER: {k} class={v.__class__} id(class)={id(v.__class__)}")
-    logger.info(f"[DEBUG] In handler: client={client}, class={client.__class__}, id={id(client.__class__)}")
-    logger.info(f"[DEBUG] Using client: {client} for provider: {provider}")
-    logger.info(f"[DEBUG] Before provider call: about to await client.chat_completions")
-    try:
-        result = await client.chat_completions(body, model)
-        logger.info(f"[DEBUG] After provider call: type(result)={type(result)}, result={result}")
-        logger.info("Remote provider call succeeded", extra={"event": "provider_success", "provider": provider})
+            return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
+        prompt = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
+        # Token limit enforcement (simple char-based estimate)
+        if len(prompt) > 2048:
+            logger.warning("Request exceeds max token limit", extra={"event": "token_limit"})
+            router_requests_errors_total.inc()
+            return JSONResponse(status_code=413, content={"detail": "Request exceeds max token limit"})
+        # Caching
+        cache = await get_cache()
+        cache_key = make_cache_key(prompt, "", model)
+        cached = await cache.get(cache_key)
+        if cached:
+            try:
+                loaded = json.loads(cached)
+                logger.info("Cache hit", extra={"event": "cache_hit", "cache_key": cache_key})
+                router_cache_hits_total.inc()
+                return JSONResponse(status_code=200, content=loaded)
+            except Exception as e:
+                logger.warning(f"Cache poisoning or legacy value for key {cache_key}: {e}. Deleting and treating as miss.")
+                await cache.delete(cache_key)
+                logger.info("Cache miss (after delete)", extra={"event": "cache_miss", "cache_key": cache_key})
+                router_cache_misses_total.inc()
+        else:
+            logger.info("Cache miss", extra={"event": "cache_miss", "cache_key": cache_key})
+            router_cache_misses_total.inc()
+        # Classification
+        try:
+            classification = await classify_prompt(prompt)
+            logger.info("Prompt classified", extra={"event": "classification", "result": classification})
+        except Exception as e:
+            logger.error("Classifier error", extra={"event": "classifier_error", "error": str(e)})
+            router_requests_errors_total.inc()
+            return JSONResponse(status_code=503, content={"detail": "Classifier error: " + str(e)})
+        if classification == "local":
+            # Local vLLM call
+            try:
+                response = await generate_local(body)
+                logger.info("Local vLLM call succeeded", extra={"event": "vllm_success"})
+            except Exception as e:
+                logger.error("Local vLLM backend error", extra={"event": "vllm_error", "error": str(e)})
+                router_requests_errors_total.inc()
+                return JSONResponse(status_code=502, content={"detail": "Local vLLM backend error: " + str(e)})
+            # Cache response
+            await cache.set(cache_key, json.dumps(response), ex=3600)
+            return JSONResponse(status_code=200, content=response)
+        # Remote: route to provider
+        from router.provider_clients import PROVIDER_CLIENTS
+        # For now, pick provider by model prefix (could be made more sophisticated)
+        provider_map = {
+            "gpt": "openai",
+            "claude": "anthropic",
+            "grok": "grok",
+            "openrouter": "openrouter",
+            "openllama": "openllama",
+        }
+        provider = None
+        model_l = model.lower()
+        for prefix, name in provider_map.items():
+            match_prefix = model_l.startswith(prefix)
+            match_hyphen = model_l.split("-", 1)[0] == prefix
+            logger.info(f"[DEBUG] Mapping check: model='{model_l}', prefix='{prefix}', match_prefix={match_prefix}, match_hyphen={match_hyphen}")
+            if match_prefix or match_hyphen:
+                provider = name
+                logger.info(f"[DEBUG] Model '{model}' matched prefix '{prefix}' to provider '{provider}'")
+                break
+        logger.info(f"[DEBUG] Model '{model}' routed to provider: {provider}")
+        if not provider:
+            logger.error("Unknown remote provider for model", extra={"event": "provider_error", "model": model})
+            router_requests_errors_total.inc()
+            return JSONResponse(status_code=400, content={"detail": f"Unknown remote provider for model: {model}"})
+        client = PROVIDER_CLIENTS[provider]
+        logger.info(f"[DEBUG] HANDLER: id(PROVIDER_CLIENTS)={id(PROVIDER_CLIENTS)}")
+        for k, v in PROVIDER_CLIENTS.items():
+            logger.info(f"[DEBUG] HANDLER: {k} class={v.__class__} id(class)={id(v.__class__)}")
+        logger.info(f"[DEBUG] In handler: client={client}, class={client.__class__}, id={id(client.__class__)}")
+        logger.info(f"[DEBUG] Using client: {client} for provider: {provider}")
+        logger.info(f"[DEBUG] Before provider call: about to await client.chat_completions")
+        try:
+            result = await client.chat_completions(body, model)
+            logger.info(f"[DEBUG] After provider call: type(result)={type(result)}, result={result}")
+            logger.info("Remote provider call succeeded", extra={"event": "provider_success", "provider": provider})
+        except Exception as e:
+            logger.error(f"[DEBUG] Exception in provider call: {e}, type(result)={type(result) if 'result' in locals() else 'N/A'}", extra={"event": "provider_error", "error": str(e), "provider": provider})
+            router_requests_errors_total.inc()
+            return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
+        # Optionally cache remote responses
+        if isinstance(result, dict):
+            logger.info(f"[DEBUG] Entering dict branch for result: {result}")
+            try:
+                await cache.set(cache_key, json.dumps(result), ex=3600)
+            except Exception as cache_exc:
+                logger.error(f"[DEBUG] Cache serialization error: {cache_exc}, result={result}")
+            return JSONResponse(status_code=200, content=result)
+        else:
+            logger.info(f"[DEBUG] Entering object branch for result: {result}")
+            try:
+                await cache.set(cache_key, json.dumps(result.content), ex=3600)
+            except Exception as cache_exc:
+                logger.error(f"[DEBUG] Cache serialization error: {cache_exc}, result={getattr(result, 'content', None)}")
+            return JSONResponse(status_code=getattr(result, 'status_code', 200), content=result.content)
     except Exception as e:
-        logger.error(f"[DEBUG] Exception in provider call: {e}, type(result)={type(result) if 'result' in locals() else 'N/A'}", extra={"event": "provider_error", "error": str(e), "provider": provider})
-        router_requests_errors_total.inc()
-        return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
-    # Optionally cache remote responses
-    if isinstance(result, dict):
-        logger.info(f"[DEBUG] Entering dict branch for result: {result}")
-        try:
-            await cache.set(cache_key, json.dumps(result), ex=3600)
-        except Exception as cache_exc:
-            logger.error(f"[DEBUG] Cache serialization error: {cache_exc}, result={result}")
-        return JSONResponse(status_code=200, content=result)
-    else:
-        logger.info(f"[DEBUG] Entering object branch for result: {result}")
-        try:
-            await cache.set(cache_key, json.dumps(result.content), ex=3600)
-        except Exception as cache_exc:
-            logger.error(f"[DEBUG] Cache serialization error: {cache_exc}, result={getattr(result, 'content', None)}")
-        return JSONResponse(status_code=getattr(result, 'status_code', 200), content=result.content)
+        import traceback
+        print(f"[DEBUG] HANDLER EXCEPTION: {e}")
+        traceback.print_exc()
+        logger.error(f"[DEBUG] HANDLER EXCEPTION: {e}")
+        return JSONResponse(status_code=502, content={"detail": str(e)})
 
 @app.on_event("startup")
 async def startup_event():
