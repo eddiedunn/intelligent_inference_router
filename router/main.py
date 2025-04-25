@@ -133,6 +133,21 @@ def create_app():
         traceback.print_exc()
         return JSONResponse(status_code=502, content={"detail": "Internal Server Error"})
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request, exc):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": {
+                    "message": "Invalid request payload.",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": "invalid_payload",
+                    "details": exc.errors(),
+                }
+            },
+        )
+
     instrument_app(app)
 
     # CORS (optional, for local dev)
