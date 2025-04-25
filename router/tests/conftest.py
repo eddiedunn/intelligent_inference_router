@@ -4,6 +4,8 @@ import pytest
 import redis.asyncio as redis
 from fastapi_limiter.depends import RateLimiter
 from fastapi.testclient import TestClient
+import asyncio
+from fastapi_limiter import FastAPILimiter
 
 print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
 
@@ -92,3 +94,16 @@ def client():
             kwargs['headers'] = headers
             return super().request(*args, **kwargs)
     return PatchedTestClient(app)
+
+@pytest.fixture(scope="session", autouse=True)
+def shutdown_async_resources():
+    # Ensure FastAPILimiter and any global redis connections are closed at session end
+    yield
+    try:
+        limiter = FastAPILimiter.redis
+        if limiter:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.run_until_complete(limiter.close())
+    except Exception as e:
+        print(f"[DEBUG] Error shutting down FastAPILimiter/Redis: {e}")
