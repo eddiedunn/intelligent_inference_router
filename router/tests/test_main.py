@@ -16,7 +16,7 @@ client = TestClient(app)
 API_KEY = "test-key"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def setup_fastapi_limiter():
     redis_url = "redis://localhost:6379/0"
     max_attempts = 10
