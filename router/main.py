@@ -1,17 +1,17 @@
 import os
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
-print("[DEBUG] checkpoint 1: after os import")
+
 # --- Runtime check for MOCK_PROVIDERS ---
 def is_mock_providers():
     return os.getenv("MOCK_PROVIDERS") == "1"
 
-print(f"[DEBUG] checkpoint 3: after MOCK_PROVIDERS eval, MOCK_PROVIDERS={is_mock_providers()}")
-if is_mock_providers():
+# --- Patch provider clients for MOCK_PROVIDERS ---
+def patch_for_mock_providers():
     from router.provider_clients import openai, anthropic, grok, openrouter, openllama
-    print("[DEBUG] checkpoint 4: after provider_clients imports")
+    print("[DEBUG] patch_for_mock_providers: after provider_clients imports")
     import logging
-    print("[DEBUG] checkpoint 2: after logging import")
+    print("[DEBUG] patch_for_mock_providers: after logging import")
     logger = logging.getLogger("uvicorn.error")
     dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
     async def dummy_chat_completions(self, *args, **kwargs):
@@ -20,13 +20,13 @@ if is_mock_providers():
     for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
         cls.chat_completions = dummy_chat_completions
     import router.providers.local_vllm
-    print("[DEBUG] checkpoint 5: after local_vllm import")
+    print("[DEBUG] patch_for_mock_providers: after local_vllm import")
     async def dummy_generate_local(body):
         return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
     router.providers.local_vllm.generate_local = dummy_generate_local
     # Rebuild PROVIDER_CLIENTS registry with patched classes
     from router import provider_clients
-    print("[DEBUG] checkpoint 6: after provider_clients registry import")
+    print("[DEBUG] patch_for_mock_providers: after provider_clients registry import")
     provider_clients.PROVIDER_CLIENTS = {
         "openai": openai.OpenAIClient(),
         "anthropic": anthropic.AnthropicClient(),
@@ -37,9 +37,13 @@ if is_mock_providers():
     logger.info(f"[DEBUG] PATCH SITE: id(PROVIDER_CLIENTS)={id(provider_clients.PROVIDER_CLIENTS)}")
     for k, v in provider_clients.PROVIDER_CLIENTS.items():
         logger.info(f"[DEBUG] PATCH SITE: {k} class={v.__class__} id(class)={id(v.__class__)}")
-    print("[DEBUG] checkpoint 7: after PROVIDER_CLIENTS patch")
 
-print("[DEBUG] checkpoint 8: before FastAPI import")
+if is_mock_providers():
+    patch_for_mock_providers()
+
+print("[DEBUG] checkpoint 1: after os import")
+print(f"[DEBUG] checkpoint 3: after MOCK_PROVIDERS eval, MOCK_PROVIDERS={is_mock_providers()}")
+
 # FastAPI entry point for IIR MVP Phase 1a
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
