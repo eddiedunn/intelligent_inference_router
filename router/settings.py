@@ -1,7 +1,6 @@
 # Settings loader for IIR MVP
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
-import yaml
 import os
 
 class Settings(BaseSettings):
@@ -29,5 +28,14 @@ class Settings(BaseSettings):
             data = yaml.safe_load(f)
         return cls(**data)
 
+# Always use env-based loading by default
 def get_settings():
-    return Settings.from_yaml()
+    settings = Settings()
+    # Fail fast if IIR_API_KEY is missing
+    if not settings.IIR_API_KEY:
+        raise RuntimeError("IIR_API_KEY environment variable must be set! (Check your .env and deployment)")
+    return settings
+
+# Only use from_yaml for explicit local/testing scenarios
+# def get_settings_from_yaml(path="config.defaults.yaml"):
+#     return Settings.from_yaml(path)
