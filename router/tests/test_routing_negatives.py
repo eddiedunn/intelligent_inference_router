@@ -9,6 +9,8 @@ async def test_chat_completions_missing_model(test_api_key):
     payload = {"messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
+    print(f"[DEBUG] missing_model resp.status_code={resp.status_code}")
+    print(f"[DEBUG] missing_model resp.body={resp.text}")
     assert resp.status_code == 400
     assert "Missing required fields" in resp.json()["error"]["message"]
 
@@ -26,6 +28,8 @@ async def test_chat_completions_missing_messages(test_api_key):
 async def test_chat_completions_invalid_payload(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", data="not a json", headers={"Authorization": f"Bearer {test_api_key}"})
+    print(f"[DEBUG] invalid_payload resp.status_code={resp.status_code}")
+    print(f"[DEBUG] invalid_payload resp.body={resp.text}")
     assert resp.status_code in (400, 422)
     assert "Invalid JSON payload" in resp.json()["error"]["message"]
 
@@ -74,6 +78,8 @@ async def test_chat_completions_unknown_model(test_api_key):
     payload = {"model": "foo-unknown", "messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
+    print(f"[DEBUG] unknown_model resp.status_code={resp.status_code}")
+    print(f"[DEBUG] unknown_model resp.body={resp.text}")
     assert resp.status_code == 400
     assert "Unknown remote provider for model" in resp.json()["error"]["message"]
 
