@@ -6,6 +6,10 @@ from fastapi_limiter.depends import RateLimiter
 from fastapi.testclient import TestClient
 import asyncio
 from fastapi_limiter import FastAPILimiter
+import socket
+import subprocess
+import time
+import httpx
 
 print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
 
@@ -94,6 +98,41 @@ def client():
             kwargs['headers'] = headers
             return super().request(*args, **kwargs)
     return PatchedTestClient(app)
+
+@pytest.fixture(scope="session")
+def uvicorn_server():
+    """Start the FastAPI app with uvicorn on a random port for integration tests."""
+    from router.main import app
+    import uvicorn
+    # Find a free port
+    sock = socket.socket()
+    sock.bind(("localhost", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    # Start uvicorn in a subprocess
+    proc = subprocess.Popen([
+        "uvicorn", "router.main:app", "--host", "127.0.0.1", f"--port={port}", "--log-level=warning"
+    ])
+    # Wait for server to be ready
+    for _ in range(20):
+        try:
+            httpx.get(f"http://127.0.0.1:{port}/health", timeout=0.5)
+            break
+        except Exception:
+            time.sleep(0.2)
+    else:
+        proc.terminate()
+        raise RuntimeError("Uvicorn server did not start")
+    yield port
+    proc.terminate()
+    proc.wait()
+
+@pytest.fixture(scope="function")
+async def async_client(uvicorn_server):
+    """An httpx.AsyncClient pointed at the live FastAPI server."""
+    base_url = f"http://127.0.0.1:{uvicorn_server}"
+    async with httpx.AsyncClient(base_url=base_url) as ac:
+        yield ac
 
 @pytest.fixture(scope="session", autouse=True)
 def shutdown_async_resources():
