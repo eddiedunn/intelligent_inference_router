@@ -199,16 +199,17 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
     if not provider:
         return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
-    # --- MOCK PROVIDERS: always return mock response for any provider ---
     print(f"[DEBUG] /v1/chat/completions: is_mock_providers()={is_mock_providers()}, MOCK_PROVIDERS env={os.getenv('MOCK_PROVIDERS')}")
     if is_mock_providers():
         response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
         return JSONResponse(status_code=200, content=response)
+
+    print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
     try:
-        # Real provider call (should not be reached in MOCK_PROVIDERS=1)
         response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
         return JSONResponse(status_code=200, content=response)
     except Exception as e:
+        print(f"[DEBUG] Exception in real provider call: {e}")
         return JSONResponse(status_code=502, content={"error": {"message": f"Remote provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
 
 # Simple in-memory job store (replace with persistent store in production)
