@@ -293,8 +293,14 @@ async def startup_event():
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     if "redis://redis:" in redis_url:
         redis_url = "redis://localhost:6379/0"
-    redis_client = redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+    redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
     await FastAPILimiter.init(redis_client)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    redis_client = FastAPILimiter.redis
+    if redis_client:
+        await redis_client.close()
 
 @app.get("/metrics")
 def metrics():
