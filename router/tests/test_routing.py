@@ -43,7 +43,7 @@ async def test_routing_local_model(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Invalid request payload."
+    assert resp.json()["error"]["message"] == "Unknown remote provider for model"
 
 # Test error on unknown model prefix
 @pytest.mark.asyncio
