@@ -129,9 +129,16 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
     cache_key = make_cache_key(prompt, "", model)
     cached = await cache.get(cache_key)
     if cached:
-        logger.info("Cache hit", extra={"event": "cache_hit", "cache_key": cache_key})
-        router_cache_hits_total.inc()
-        return JSONResponse(status_code=200, content=json.loads(cached))
+        try:
+            loaded = json.loads(cached)
+            logger.info("Cache hit", extra={"event": "cache_hit", "cache_key": cache_key})
+            router_cache_hits_total.inc()
+            return JSONResponse(status_code=200, content=loaded)
+        except Exception as e:
+            logger.warning(f"Cache poisoning or legacy value for key {cache_key}: {e}. Deleting and treating as miss.")
+            await cache.delete(cache_key)
+            logger.info("Cache miss (after delete)", extra={"event": "cache_miss", "cache_key": cache_key})
+            router_cache_misses_total.inc()
     else:
         logger.info("Cache miss", extra={"event": "cache_miss", "cache_key": cache_key})
         router_cache_misses_total.inc()
