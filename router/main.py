@@ -198,7 +198,7 @@ MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
 @app.on_event("startup")
 async def apply_test_mocks():
     if MOCK_PROVIDERS:
-        from router.provider_clients import openai, anthropic, grok, openrouter, openllama
+        from router.provider_clients import openai, anthropic, grok, openrouter, openllama, PROVIDER_CLIENTS
         dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
         async def dummy_chat_completions(self, payload, model, **kwargs):
             class Dummy:
@@ -211,6 +211,15 @@ async def apply_test_mocks():
         async def dummy_generate_local(body):
             return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
         router.providers.local_vllm.generate_local = dummy_generate_local
+        # Rebuild PROVIDER_CLIENTS registry with patched classes
+        from router import provider_clients
+        provider_clients.PROVIDER_CLIENTS = {
+            "openai": openai.OpenAIClient(),
+            "anthropic": anthropic.AnthropicClient(),
+            "grok": grok.GrokClient(),
+            "openrouter": openrouter.OpenRouterClient(),
+            "openllama": openllama.OpenLLaMAClient(),
+        }
 
 @app.on_event("startup")
 async def startup_event():
