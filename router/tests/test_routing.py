@@ -1,7 +1,7 @@
 import pytest
-from fastapi.testclient import TestClient
-from router.main import app
 import asyncio
+from httpx import AsyncClient
+from router.main import app
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
 
@@ -30,21 +30,23 @@ def patch_provider_clients(monkeypatch):
     ("openrouter-1", "openrouter"),
     ("openllama-1", "openllama"),
 ])
-def test_routing_remote_models(client, model, expected_provider, test_api_key):
+@pytest.mark.asyncio
+async def test_routing_remote_models(client, model, expected_provider, test_api_key):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["object"] == "chat.completion"
-    assert data["choices"][0]["message"]["content"] == "Hello!"
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["object"] == "chat.completion"
+        assert data["choices"][0]["message"]["content"] == "Hello!"
 
 # Test local path (musicgen)
-def test_routing_local_model(monkeypatch, test_api_key):
-    client = TestClient(app)
+@pytest.mark.asyncio
+async def test_routing_local_model(monkeypatch, test_api_key):
     # Patch generate_local to return a dummy response
     monkeypatch.setattr("router.providers.local_vllm.generate_local", lambda body: {"result": "local"})
     payload = {
@@ -52,19 +54,21 @@ def test_routing_local_model(monkeypatch, test_api_key):
         "messages": [{"role": "user", "content": "hi"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
-    assert resp.status_code == 200
-    # Accept either new or old format
-    assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
+        assert resp.status_code == 200
+        # Accept either new or old format
+        assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
 
 # Test error on unknown model prefix
-def test_routing_unknown_model(test_api_key):
-    client = TestClient(app)
+@pytest.mark.asyncio
+async def test_routing_unknown_model(test_api_key):
     payload = {
         "model": "foo-unknown",
         "messages": [{"role": "user", "content": "hi"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
-    assert resp.status_code == 400
-    assert "Unknown remote provider for model" in resp.text
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
+        assert resp.status_code == 400
+        assert "Unknown remote provider for model" in resp.text
