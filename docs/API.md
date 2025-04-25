@@ -13,7 +13,7 @@ npm run generate-api-key
 python generate_api_key.py --length 40 --prefix myservice
 ```
 
-Copy the generated key into your `.env` file as `ROUTER_API_KEY` (or add to `ROUTER_ALLOWED_API_KEYS` for multiple keys).
+Copy the generated key into your `.env` file as `IIR_API_KEY` (or add to `IIR_ALLOWED_KEYS` for multiple keys).
 
 ## Endpoints
 - `GET /health`: Health check
@@ -79,7 +79,7 @@ Response (error):
 ## Common Pitfalls & Troubleshooting
 
 - **401 Unauthorized / 403 Forbidden:**
-  - Did you set `ROUTER_API_KEY` in your `.env` and client config?
+  - Did you set `IIR_API_KEY` in your `.env` and client config?
   - Are you passing the correct `Authorization: Bearer <API_KEY>` header?
 - **429 Too Many Requests:**
   - Rate limit exceeded. Wait and retry, or check your per-IP rate limit settings.

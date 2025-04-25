@@ -1,8 +1,7 @@
 # Configuration Reference: IIR MVP Phase 1a
 
 ## .env Variables
-- `ROUTER_API_KEY`: Required API key for authentication
-- `ROUTER_ALLOWED_API_KEYS`: (Optional) Comma-separated list of allowed keys
+- `IIR_API_KEY`: Required API key for authentication
 - `REDIS_URL`: Redis connection string
 - `LOG_LEVEL`: Logging level
 - `ROUTER_LOG_FULL_CONTENT`: Enable full prompt/response logging

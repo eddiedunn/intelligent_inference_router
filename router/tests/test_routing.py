@@ -1,5 +1,5 @@
 import os
-os.environ["ROUTER_API_KEY"] = "test-router-key-123"
+os.environ["IIR_API_KEY"] = "test-router-key-123"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,8 +38,7 @@ def test_routing_remote_models(model, expected_provider):
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]
     }
-    headers = {"Authorization": f"Bearer test-router-key-123"}
-    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
+    resp = client.post("/v1/chat/completions", json=payload)
     assert resp.status_code == 200
     data = resp.json()
     assert data["object"] == "chat.completion"
@@ -66,7 +65,6 @@ def test_routing_unknown_model():
         "model": "foo-unknown",
         "messages": [{"role": "user", "content": "hi"}]
     }
-    headers = {"Authorization": f"Bearer test-router-key-123"}
-    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
+    resp = client.post("/v1/chat/completions", json=payload)
     assert resp.status_code == 400
     assert "Unknown remote provider for model" in resp.text

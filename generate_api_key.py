@@ -27,7 +27,7 @@ def generate_key(length=DEFAULT_KEY_LENGTH, prefix=None):
     return key
 
 
-def set_env_key(env_path, api_key, key_name="ROUTER_API_KEY"):
+def set_env_key(env_path, api_key, key_name="IIR_API_KEY"):
     """Set (or replace) the API key in a .env-style file, preserving all other lines and comments."""
     backup_path = env_path.with_suffix(env_path.suffix + ".bak")
     if env_path.exists():
