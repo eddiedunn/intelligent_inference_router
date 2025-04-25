@@ -1,6 +1,7 @@
 import os
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
+from fastapi.exceptions import RequestValidationError
 import logging
 logger = logging.getLogger("uvicorn.error")
 
