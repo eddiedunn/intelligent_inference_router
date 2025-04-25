@@ -1,9 +1,15 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
+
+# --- Robust test API key fixture ---
+@pytest.fixture(scope="session", autouse=True)
+def set_test_router_api_key():
+    os.environ["ROUTER_API_KEY"] = "test-router-key-123"
+
 from router.main import app
 import asyncio
-import os
 
 @pytest.fixture(autouse=True)
 def patch_provider_clients(monkeypatch):
@@ -30,16 +36,13 @@ def patch_provider_clients(monkeypatch):
     ("openrouter-1", "openrouter"),
     ("openllama-1", "openllama"),
 ])
-def test_routing_remote_models(model, expected_provider, monkeypatch):
-    # Set a test API key in the environment
-    test_api_key = "test-router-key-123"
-    monkeypatch.setenv("ROUTER_API_KEY", test_api_key)
+def test_routing_remote_models(model, expected_provider):
     client = TestClient(app)
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]
     }
-    headers = {"Authorization": f"Bearer {test_api_key}"}
+    headers = {"Authorization": f"Bearer test-router-key-123"}
     resp = client.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
@@ -67,6 +70,7 @@ def test_routing_unknown_model():
         "model": "foo-unknown",
         "messages": [{"role": "user", "content": "hi"}]
     }
-    resp = client.post("/v1/chat/completions", json=payload)
+    headers = {"Authorization": f"Bearer test-router-key-123"}
+    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp.status_code == 400
     assert "Unknown remote provider for model" in resp.text
