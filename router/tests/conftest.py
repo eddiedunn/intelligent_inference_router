@@ -1,4 +1,9 @@
 import os
+# Set robust test API key env for all test processes BEFORE any app/config import
+TEST_API_KEY = "test-secret-key-robust"
+os.environ["IIR_API_KEY"] = TEST_API_KEY
+os.environ["IIR_ALLOWED_KEYS"] = TEST_API_KEY
+
 import secrets
 import pytest
 import redis.asyncio as redis
@@ -13,8 +18,6 @@ import httpx
 import pytest_asyncio
 
 print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
-
-TEST_API_KEY = "test-secret-key-robust"
 
 @pytest.fixture(scope="session")
 def test_api_key():
@@ -104,9 +107,6 @@ def uvicorn_server():
     """Start the FastAPI app with uvicorn on a random port for integration tests."""
     from router.main import app
     import uvicorn
-    # Set robust test API key env for the server
-    os.environ["IIR_API_KEY"] = TEST_API_KEY
-    os.environ["IIR_ALLOWED_KEYS"] = TEST_API_KEY
     # Find a free port
     sock = socket.socket()
     sock.bind(("localhost", 0))
