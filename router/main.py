@@ -198,10 +198,12 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
         "openllama": "openllama",
     }
     provider = None
+    model_l = model.lower()
     for prefix, name in provider_map.items():
-        if model.lower().startswith(prefix):
+        if model_l.startswith(prefix) or model_l.split("-", 1)[0] == prefix:
             provider = name
             break
+    logger.info(f"[DEBUG] Model '{model}' routed to provider: {provider}")
     if not provider:
         logger.error("Unknown remote provider for model", extra={"event": "provider_error", "model": model})
         router_requests_errors_total.inc()
