@@ -9,6 +9,11 @@ If you need more information, ask me to provide logs, outputs, or files from the
 
 Note: All commands (build, deploy, test) must be run on the remote host, which is always kept in sync with the local codebase. Ensure any local changes are pushed or copied to the remote host before running commands. All logs and test outputs are forwarded to the local workstation for analysis.
 
+There is an exception for this!!!!!!!
+
+If there is a script that access a remote server and runs tests so that you can see the outoput that is 100000000% OKAY! GOT IT?
+
+# END SUPERDUPER IMPORTANT INSTRUCTIONS
 
 # windsurf's Memory Bank
 
