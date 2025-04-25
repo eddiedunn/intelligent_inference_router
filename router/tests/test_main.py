@@ -16,26 +16,7 @@ client = TestClient(app)
 API_KEY = "test-key"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
-@pytest_asyncio.fixture(autouse=True)
-async def setup_fastapi_limiter():
-    redis_url = "redis://localhost:6379/0"
-    max_attempts = 10
-    for attempt in range(max_attempts):
-        try:
-            print(f"[DEBUG] Attempt {attempt+1} connecting to Redis at {redis_url}")
-            r = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
-            print("[DEBUG] Pinging Redis...")
-            pong = await r.ping()
-            print(f"[DEBUG] Redis ping result: {pong}")
-            print("[DEBUG] Initializing FastAPILimiter...")
-            await FastAPILimiter.init(r)
-            print("[DEBUG] FastAPILimiter initialized successfully.")
-            return
-        except Exception as e:
-            print(f"[DEBUG] Exception on attempt {attempt+1}: {e}")
-            if attempt == max_attempts - 1:
-                pytest.skip(f"Redis not available for FastAPILimiter after {max_attempts} attempts: {e}")
-            await asyncio.sleep(0.5)
+# Removed setup_fastapi_limiter fixture; FastAPILimiter is now initialized in app startup event.
 
 # Helper to mock config.yaml loading if needed
 def load_config():
