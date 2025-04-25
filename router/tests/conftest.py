@@ -3,6 +3,7 @@ import os
 TEST_API_KEY = "test-secret-key-robust"
 os.environ["IIR_API_KEY"] = TEST_API_KEY
 os.environ["IIR_ALLOWED_KEYS"] = TEST_API_KEY
+os.environ["MOCK_PROVIDERS"] = "1"
 
 import secrets
 import pytest

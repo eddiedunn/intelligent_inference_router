@@ -193,6 +193,22 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
     await cache.set(cache_key, json.dumps(result.content), ex=3600)
     return JSONResponse(status_code=result.status_code, content=result.content)
 
+import os
+
+MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
+
+if MOCK_PROVIDERS:
+    from router.provider_clients import openai, anthropic, grok, openrouter, openllama
+    import types
+    dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+    async def dummy_chat_completions(self, payload, model, **kwargs):
+        class Dummy:
+            content = dummy_resp
+            status_code = 200
+        return Dummy()
+    for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
+        cls.chat_completions = dummy_chat_completions
+
 @app.on_event("startup")
 async def startup_event():
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
