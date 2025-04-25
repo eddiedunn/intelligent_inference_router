@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import httpx
 from unittest.mock import patch, AsyncMock
 from router.provider_clients import (
     OpenAIClient, AnthropicClient, GrokClient, OpenRouterClient, OpenLLaMAClient
