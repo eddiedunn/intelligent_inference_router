@@ -41,6 +41,31 @@ def configure_udp_logging():
 
 configure_udp_logging()
 
+MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
+if MOCK_PROVIDERS:
+    from router.provider_clients import openai, anthropic, grok, openrouter, openllama
+    dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+    async def dummy_chat_completions(self, payload, model, **kwargs):
+        class Dummy:
+            content = dummy_resp
+            status_code = 200
+        return Dummy()
+    for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
+        cls.chat_completions = dummy_chat_completions
+    import router.providers.local_vllm
+    async def dummy_generate_local(body):
+        return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+    router.providers.local_vllm.generate_local = dummy_generate_local
+    # Rebuild PROVIDER_CLIENTS registry with patched classes
+    from router import provider_clients
+    provider_clients.PROVIDER_CLIENTS = {
+        "openai": openai.OpenAIClient(),
+        "anthropic": anthropic.AnthropicClient(),
+        "grok": grok.GrokClient(),
+        "openrouter": openrouter.OpenRouterClient(),
+        "openllama": openllama.OpenLLaMAClient(),
+    }
+
 app = FastAPI(title="Intelligent Inference Router", version="1.0")
 
 instrument_app(app)
@@ -192,34 +217,6 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
     # Optionally cache remote responses
     await cache.set(cache_key, json.dumps(result.content), ex=3600)
     return JSONResponse(status_code=result.status_code, content=result.content)
-
-MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
-
-@app.on_event("startup")
-async def apply_test_mocks():
-    if MOCK_PROVIDERS:
-        from router.provider_clients import openai, anthropic, grok, openrouter, openllama, PROVIDER_CLIENTS
-        dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-        async def dummy_chat_completions(self, payload, model, **kwargs):
-            class Dummy:
-                content = dummy_resp
-                status_code = 200
-            return Dummy()
-        for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
-            cls.chat_completions = dummy_chat_completions
-        import router.providers.local_vllm
-        async def dummy_generate_local(body):
-            return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-        router.providers.local_vllm.generate_local = dummy_generate_local
-        # Rebuild PROVIDER_CLIENTS registry with patched classes
-        from router import provider_clients
-        provider_clients.PROVIDER_CLIENTS = {
-            "openai": openai.OpenAIClient(),
-            "anthropic": anthropic.AnthropicClient(),
-            "grok": grok.GrokClient(),
-            "openrouter": openrouter.OpenRouterClient(),
-            "openllama": openllama.OpenLLaMAClient(),
-        }
 
 @app.on_event("startup")
 async def startup_event():
