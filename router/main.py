@@ -202,14 +202,17 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
     if not provider:
         return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
-    print(f"[DEBUG] /v1/chat/completions: is_mock_providers()={is_mock_providers()}, MOCK_PROVIDERS env={os.getenv('MOCK_PROVIDERS')}")
+    # --- FORCE MOCK RESPONSE for all recognized providers when MOCK_PROVIDERS=1 ---
+    if is_mock_providers():
+        print(f"[DEBUG] MOCK_PROVIDERS active: returning mock response for provider={provider}")
+        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
+        return JSONResponse(status_code=200, content=response)
+
+    # Real provider logic (should never be reached in MOCK_PROVIDERS=1)
     print(f"[DEBUG] /v1/chat/completions: provider={provider}")
     from router import provider_clients
     client_obj = provider_clients.PROVIDER_CLIENTS.get(provider)
     print(f"[DEBUG] /v1/chat/completions: provider client object={client_obj}, type={type(client_obj)}, id(class)={id(type(client_obj))}")
-    if is_mock_providers():
-        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
-        return JSONResponse(status_code=200, content=response)
     print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
     try:
         print(f"[DEBUG] About to call chat_completions on {client_obj}")
