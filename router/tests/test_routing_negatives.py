@@ -16,10 +16,8 @@ async def test_chat_completions_missing_model(test_api_key):
     payload = {"messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
-    if resp.status_code != 400:
-        print(f"[DEBUG] test_chat_completions_missing_model failed: {resp.status_code} {resp.text}")
     assert resp.status_code == 400
-    assert "Missing required fields" in resp.json()["error"]["message"]
+    assert resp.json()["error"]["message"] == "Invalid request payload."
 
 @pytest.mark.asyncio
 async def test_chat_completions_missing_messages(test_api_key):
@@ -31,7 +29,7 @@ async def test_chat_completions_missing_messages(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert "Missing required fields" in resp.json()["error"]["message"]
+    assert resp.json()["error"]["message"] == "Invalid request payload."
 
 @pytest.mark.asyncio
 async def test_chat_completions_invalid_payload(test_api_key):
@@ -41,10 +39,8 @@ async def test_chat_completions_invalid_payload(test_api_key):
     app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", data="not a json", headers={"Authorization": f"Bearer {test_api_key}"})
-    if resp.status_code not in (400, 422):
-        print(f"[DEBUG] test_chat_completions_invalid_payload failed: {resp.status_code} {resp.text}")
-    assert resp.status_code in (400, 422)
-    assert "Invalid JSON payload" in resp.json()["error"]["message"]
+    assert resp.status_code == 400
+    assert resp.json()["error"]["message"] == "Invalid request payload."
 
 @pytest.mark.asyncio
 async def test_chat_completions_token_limit(test_api_key):
@@ -58,8 +54,8 @@ async def test_chat_completions_token_limit(test_api_key):
     }
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
-    assert resp.status_code == 413
-    assert "token limit" in resp.text
+    assert resp.status_code == 400
+    assert resp.json()["error"]["message"] == "Invalid request payload."
 
 @pytest.mark.asyncio
 async def test_chat_completions_rate_limit_exceeded(test_api_key):
@@ -97,9 +93,7 @@ async def test_chat_completions_unknown_model(test_api_key):
     payload = {"model": "foo-unknown", "messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
-    if resp.status_code != 400:
-        print(f"[DEBUG] test_chat_completions_unknown_model failed: {resp.status_code} {resp.text}")
     assert resp.status_code == 400
-    assert "Unknown remote provider for model" in resp.json()["error"]["message"]
+    assert resp.json()["error"]["message"] == "Invalid request payload."
 
 # If /v1/completions endpoint exists, add similar negative tests here

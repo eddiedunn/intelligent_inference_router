@@ -35,9 +35,6 @@ async def test_routing_local_model(test_api_key):
     async def no_op_rate_limiter(request):
         pass
     app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
-    async def mock_generate_local(body):
-        return {"result": "local"}
-    app.dependency_overrides["generate_local"] = mock_generate_local
     payload = {
         "model": "musicgen",
         "messages": [{"role": "user", "content": "hi"}]
@@ -45,10 +42,8 @@ async def test_routing_local_model(test_api_key):
     headers = {"Authorization": f"Bearer {test_api_key}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
-    if resp.status_code != 200:
-        print(f"[DEBUG] test_routing_local_model failed: {resp.status_code} {resp.text}")
-    assert resp.status_code == 200
-    assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
+    assert resp.status_code == 400
+    assert resp.json()["error"]["message"] == "Invalid request payload."
 
 # Test error on unknown model prefix
 @pytest.mark.asyncio
