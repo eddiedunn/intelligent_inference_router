@@ -1,6 +1,8 @@
 import os
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
+import logging
+logger = logging.getLogger("uvicorn.error")
 
 # --- Runtime check for MOCK_PROVIDERS ---
 def is_mock_providers():
@@ -10,9 +12,7 @@ def is_mock_providers():
 def patch_for_mock_providers():
     from router.provider_clients import openai, anthropic, grok, openrouter, openllama
     print("[DEBUG] patch_for_mock_providers: after provider_clients imports")
-    import logging
     print("[DEBUG] patch_for_mock_providers: after logging import")
-    logger = logging.getLogger("uvicorn.error")
     dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
     async def dummy_chat_completions(self, *args, **kwargs):
         logger.info("[DEBUG] dummy_chat_completions called")
@@ -93,7 +93,6 @@ app = FastAPI(title="Intelligent Inference Router", version="1.0")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger = logging.getLogger("uvicorn.error")
     logger.error(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}", exc_info=True)
     return JSONResponse(status_code=502, content={"detail": "Internal Server Error"})
 
