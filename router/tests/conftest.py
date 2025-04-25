@@ -10,6 +10,7 @@ import socket
 import subprocess
 import time
 import httpx
+import pytest_asyncio
 
 print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
 
@@ -127,7 +128,7 @@ def uvicorn_server():
     proc.terminate()
     proc.wait()
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def async_client(uvicorn_server):
     """An httpx.AsyncClient pointed at the live FastAPI server."""
     base_url = f"http://127.0.0.1:{uvicorn_server}"
