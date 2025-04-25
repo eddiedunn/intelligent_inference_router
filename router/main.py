@@ -46,10 +46,8 @@ if MOCK_PROVIDERS:
     from router.provider_clients import openai, anthropic, grok, openrouter, openllama
     dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
     async def dummy_chat_completions(self, payload, model, **kwargs):
-        class Dummy:
-            content = dummy_resp
-            status_code = 200
-        return Dummy()
+        # Always return a dict so provider client tests and FastAPI both work
+        return dummy_resp
     for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
         cls.chat_completions = dummy_chat_completions
     import router.providers.local_vllm
@@ -222,8 +220,13 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
         router_requests_errors_total.inc()
         return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
     # Optionally cache remote responses
-    await cache.set(cache_key, json.dumps(result.content), ex=3600)
-    return JSONResponse(status_code=result.status_code, content=result.content)
+    # If result is a dict, wrap in JSONResponse with 200
+    if isinstance(result, dict):
+        await cache.set(cache_key, json.dumps(result), ex=3600)
+        return JSONResponse(status_code=200, content=result)
+    else:
+        await cache.set(cache_key, json.dumps(result.content), ex=3600)
+        return JSONResponse(status_code=getattr(result, 'status_code', 200), content=result.content)
 
 @app.on_event("startup")
 async def startup_event():
