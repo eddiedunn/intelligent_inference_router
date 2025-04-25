@@ -89,7 +89,19 @@ def configure_udp_logging():
 
 configure_udp_logging()
 
+print("[DEBUG] APP STARTUP: FastAPI app is being created")
 app = FastAPI(title="Intelligent Inference Router", version="1.0")
+
+# Middleware to log every incoming request
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    try:
+        body = await request.body()
+    except Exception as e:
+        body = f"[ERROR reading body: {e}]"
+    print(f"[DEBUG] MIDDLEWARE: Incoming request path={request.url.path} body={body}")
+    response = await call_next(request)
+    return response
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
