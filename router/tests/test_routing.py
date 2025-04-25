@@ -1,13 +1,9 @@
 import os
+os.environ["ROUTER_API_KEY"] = "test-router-key-123"
+
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
-
-# --- Robust test API key fixture ---
-@pytest.fixture(scope="session", autouse=True)
-def set_test_router_api_key():
-    os.environ["ROUTER_API_KEY"] = "test-router-key-123"
-
 from router.main import app
 import asyncio
 
