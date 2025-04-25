@@ -4,23 +4,7 @@ from router.main import app
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
 
-@pytest.fixture(autouse=True)
-def patch_provider_clients(monkeypatch):
-    # Patch all provider clients to return a dummy response
-    dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-    async def dummy_chat_completions(self, payload, model, **kwargs):
-        class Dummy:
-            content = dummy_resp
-            status_code = 200
-        return Dummy()
-    for client_mod in [
-        "router.provider_clients.openai.OpenAIClient",
-        "router.provider_clients.anthropic.AnthropicClient",
-        "router.provider_clients.grok.GrokClient",
-        "router.provider_clients.openrouter.OpenRouterClient",
-        "router.provider_clients.openllama.OpenLLaMAClient",
-    ]:
-        monkeypatch.setattr(f"{client_mod}.chat_completions", dummy_chat_completions)
+# The patch_provider_clients fixture is removed. All provider mocking is now handled at the app module scope via MOCK_PROVIDERS.
 
 @pytest.mark.parametrize("model,expected_provider", [
     ("gpt-3.5-turbo", "openai"),
