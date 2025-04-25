@@ -163,8 +163,17 @@ def infer(req: InferRequest):
 # --- Dependency for testable rate limiter ---
 def get_rate_limiter():
     print("[DEBUG] ENTRY: get_rate_limiter dependency called")
-    from fastapi_limiter.depends import RateLimiter
-    return RateLimiter(times=100, seconds=60)
+    try:
+        from fastapi_limiter.depends import RateLimiter
+        print("[DEBUG] fastapi_limiter.depends.RateLimiter imported successfully")
+        limiter = RateLimiter(times=100, seconds=60)
+        print(f"[DEBUG] RateLimiter instantiated: {limiter}")
+        return limiter
+    except Exception as e:
+        import traceback
+        print(f"[DEBUG] ERROR in get_rate_limiter: {e}")
+        traceback.print_exc()
+        raise
 
 # OpenAI-compatible /v1/chat/completions endpoint
 @app.post("/v1/chat/completions")
