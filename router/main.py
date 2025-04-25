@@ -93,7 +93,10 @@ app = FastAPI(title="Intelligent Inference Router", version="1.0")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
     logger.error(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}", exc_info=True)
+    print(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}")
+    traceback.print_exc()
     return JSONResponse(status_code=502, content={"detail": "Internal Server Error"})
 
 instrument_app(app)
@@ -159,6 +162,7 @@ def infer(req: InferRequest):
 
 # --- Dependency for testable rate limiter ---
 def get_rate_limiter():
+    print("[DEBUG] ENTRY: get_rate_limiter dependency called")
     from fastapi_limiter.depends import RateLimiter
     return RateLimiter(times=100, seconds=60)
 
