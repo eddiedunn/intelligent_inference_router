@@ -7,13 +7,12 @@ from fastapi.testclient import TestClient
 
 print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
 
-# Generate a single random API key for the whole test session
-TEST_IIR_API_KEY = "test-" + secrets.token_urlsafe(16)
-os.environ["IIR_API_KEY"] = TEST_IIR_API_KEY
-
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test_api_key():
-    return TEST_IIR_API_KEY
+    # Generate a unique API key per test
+    key = "test-" + secrets.token_urlsafe(16)
+    os.environ["IIR_API_KEY"] = key
+    return key
 
 @pytest.fixture(autouse=True, scope="function")
 async def flush_redis_before_each_test():
@@ -42,4 +41,11 @@ def override_rate_limiter_dependency():
 @pytest.fixture
 def client():
     from router.main import app
-    return TestClient(app)
+    class PatchedTestClient(TestClient):
+        def request(self, *args, **kwargs):
+            # Inject a unique client IP for each test (simulate unique user)
+            headers = kwargs.pop('headers', {}) or {}
+            headers['X-Forwarded-For'] = secrets.token_hex(4) + '.test'
+            kwargs['headers'] = headers
+            return super().request(*args, **kwargs)
+    return PatchedTestClient(app)

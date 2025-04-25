@@ -106,6 +106,10 @@ def infer(req: InferRequest):
 # OpenAI-compatible /v1/chat/completions endpoint
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request, body: dict = Body(...), rate_limiter=Depends(RateLimiter(times=100, seconds=60)), api_key=Depends(api_key_auth)):
+    # --- DEBUG: Log RateLimiter key info ---
+    client_ip = request.headers.get("X-Forwarded-For") or request.client.host
+    rl_key = f"rl:{client_ip}:{request.url.path}"
+    print(f"[DEBUG] RateLimiter checking key: {rl_key}")
     model = body.get("model")
     messages = body.get("messages", [])
     logger = logging.getLogger("router")
