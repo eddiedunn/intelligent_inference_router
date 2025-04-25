@@ -199,6 +199,11 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
         if model_l.startswith(prefix) or model_l.split("-", 1)[0] == prefix:
             provider = name
             break
+    print(f"[DEBUG] /v1/chat/completions: incoming model={model}")
+    # Print the model-to-provider mapping
+    from router import provider_clients
+    print(f"[DEBUG] /v1/chat/completions: MODEL_PROVIDER_MAP={getattr(provider_clients, 'MODEL_PROVIDER_MAP', 'N/A')}")
+    print(f"[DEBUG] /v1/chat/completions: computed provider={provider}")
     if not provider:
         return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
