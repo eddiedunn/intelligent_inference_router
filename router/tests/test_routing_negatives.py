@@ -5,7 +5,12 @@ from router.main import app
 import os
 
 @pytest.mark.asyncio
-async def test_chat_completions_missing_model(test_api_key):
+async def test_chat_completions_missing_model(test_api_key, monkeypatch):
+    from router.main import get_rate_limiter
+    class NoOpLimiter:
+        async def __call__(self, request, response, *args, **kwargs):
+            return
+    monkeypatch.setattr("router.main.get_rate_limiter", lambda: NoOpLimiter())
     payload = {"messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
@@ -25,7 +30,12 @@ async def test_chat_completions_missing_messages(test_api_key):
     assert "Missing required fields" in resp.json()["error"]["message"]
 
 @pytest.mark.asyncio
-async def test_chat_completions_invalid_payload(test_api_key):
+async def test_chat_completions_invalid_payload(test_api_key, monkeypatch):
+    from router.main import get_rate_limiter
+    class NoOpLimiter:
+        async def __call__(self, request, response, *args, **kwargs):
+            return
+    monkeypatch.setattr("router.main.get_rate_limiter", lambda: NoOpLimiter())
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", data="not a json", headers={"Authorization": f"Bearer {test_api_key}"})
     print(f"[DEBUG] invalid_payload resp.status_code={resp.status_code}")
@@ -74,7 +84,12 @@ async def test_chat_completions_upstream_provider_error(test_api_key, monkeypatc
     assert "Remote provider error" in resp.text
 
 @pytest.mark.asyncio
-async def test_chat_completions_unknown_model(test_api_key):
+async def test_chat_completions_unknown_model(test_api_key, monkeypatch):
+    from router.main import get_rate_limiter
+    class NoOpLimiter:
+        async def __call__(self, request, response, *args, **kwargs):
+            return
+    monkeypatch.setattr("router.main.get_rate_limiter", lambda: NoOpLimiter())
     payload = {"model": "foo-unknown", "messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
