@@ -45,8 +45,8 @@ MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
 if MOCK_PROVIDERS:
     from router.provider_clients import openai, anthropic, grok, openrouter, openllama
     dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-    async def dummy_chat_completions(self, payload, model, **kwargs):
-        # Always return a dict so provider client tests and FastAPI both work
+    async def dummy_chat_completions(self, *args, **kwargs):
+        # Accept any args/kwargs and always return the dummy response
         return dummy_resp
     for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
         cls.chat_completions = dummy_chat_completions
@@ -216,7 +216,7 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
         result = await client.chat_completions(body, model)
         logger.info("Remote provider call succeeded", extra={"event": "provider_success", "provider": provider})
     except Exception as e:
-        logger.error("Remote provider error", extra={"event": "provider_error", "error": str(e), "provider": provider})
+        logger.error(f"[DEBUG] Exception in provider call: {e}, type(result)={type(result) if 'result' in locals() else 'N/A'}", extra={"event": "provider_error", "error": str(e), "provider": provider})
         router_requests_errors_total.inc()
         return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
     # Optionally cache remote responses
