@@ -1,10 +1,11 @@
+import os
+os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 import pytest
 import redis.asyncio as redis
 from fastapi_limiter import FastAPILimiter
 from fastapi.testclient import TestClient
 from router.main import app
 import yaml
-import os
 import random
 import string
 import threading
