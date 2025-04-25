@@ -24,19 +24,15 @@ async def flush_redis_before_each_test():
     await client.close()
 
 @pytest.fixture(autouse=True)
-def override_rate_limiter(monkeypatch):
-    """Override the RateLimiter dependency for /v1/chat/completions to allow 1000 requests/minute during most tests."""
+def override_rate_limiter_dependency():
+    """Override the RateLimiter dependency globally for tests except explicit rate limit tests."""
     from router import main
-    # Find the /v1/chat/completions route and replace its dependencies
-    for route in main.app.routes:
-        if getattr(route, 'path', None) == '/v1/chat/completions' and hasattr(route, 'dependencies'):
-            # Replace RateLimiter(times=100, seconds=60) with RateLimiter(times=1000, seconds=60)
-            new_dependencies = []
-            for dep in route.dependencies:
-                if isinstance(dep.dependency, RateLimiter):
-                    new_dependencies.append(
-                        main.Depends(RateLimiter(times=1000, seconds=60))
-                    )
-                else:
-                    new_dependencies.append(dep)
-            route.dependencies = new_dependencies
+    # Save original dependency overrides
+    original_override = main.app.dependency_overrides.get(RateLimiter)
+    main.app.dependency_overrides[RateLimiter] = lambda: RateLimiter(times=1000, seconds=60)
+    yield
+    # Restore original dependency override
+    if original_override is not None:
+        main.app.dependency_overrides[RateLimiter] = original_override
+    else:
+        main.app.dependency_overrides.pop(RateLimiter, None)
