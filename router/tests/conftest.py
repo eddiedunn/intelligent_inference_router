@@ -34,26 +34,38 @@ async def flush_redis_before_each_test():
     await client.flushdb()
     await client.close()
 
+# --- DUMMY RATE LIMITER FOR TESTS ---
+from fastapi import HTTPException
+class DummyRateLimiter:
+    def __init__(self, times=1000, seconds=60, force_429=False):
+        self.times = times
+        self.seconds = seconds
+        self.force_429 = force_429
+    async def __call__(self, *args, **kwargs):
+        if self.force_429:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded (dummy)")
+        return True
+
 @pytest.fixture(autouse=True)
 def override_rate_limiter_dependency():
     from router import main
-    print("[DEBUG] RateLimiter id in override fixture:", id(RateLimiter))
     # Save original dependency overrides
-    original_override = main.app.dependency_overrides.get(RateLimiter)
-    main.app.dependency_overrides[RateLimiter] = lambda: RateLimiter(times=1000, seconds=60)
+    original_override = main.app.dependency_overrides.get(DummyRateLimiter)
+    main.app.dependency_overrides[DummyRateLimiter] = lambda: DummyRateLimiter()
     yield
     # Restore original dependency override
     if original_override is not None:
-        main.app.dependency_overrides[RateLimiter] = original_override
+        main.app.dependency_overrides[DummyRateLimiter] = original_override
     else:
-        main.app.dependency_overrides.pop(RateLimiter, None)
+        main.app.dependency_overrides.pop(DummyRateLimiter, None)
 
+# Patch all test clients to use DummyRateLimiter
 @pytest.fixture
 def client():
     from router.main import app
+    app.dependency_overrides["RateLimiter"] = lambda: DummyRateLimiter()
     class PatchedTestClient(TestClient):
         def request(self, *args, **kwargs):
-            # Inject a unique client IP for each test (simulate unique user)
             headers = kwargs.pop('headers', {}) or {}
             headers['X-Forwarded-For'] = secrets.token_hex(4) + '.test'
             kwargs['headers'] = headers
