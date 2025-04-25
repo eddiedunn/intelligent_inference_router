@@ -211,7 +211,8 @@ if MOCK_PROVIDERS:
     # Patch local model as well
     import router.providers.local_vllm
     async def dummy_generate_local(body):
-        return {"result": "Hello!"}
+        # Always return same mock as remote providers for test determinism
+        return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
     router.providers.local_vllm.generate_local = dummy_generate_local
 
 @app.on_event("startup")
