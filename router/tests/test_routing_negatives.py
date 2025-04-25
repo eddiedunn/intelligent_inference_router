@@ -95,6 +95,6 @@ async def test_chat_completions_unknown_model(test_api_key, monkeypatch):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert "Missing required fields" in resp.text
+    assert "Unknown remote provider for model" in resp.text
 
 # If /v1/completions endpoint exists, add similar negative tests here
