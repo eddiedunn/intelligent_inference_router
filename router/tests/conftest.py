@@ -5,6 +5,8 @@ import redis.asyncio as redis
 from fastapi_limiter.depends import RateLimiter
 from fastapi.testclient import TestClient
 
+print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
+
 # Generate a single random API key for the whole test session
 TEST_IIR_API_KEY = "test-" + secrets.token_urlsafe(16)
 os.environ["IIR_API_KEY"] = TEST_IIR_API_KEY
@@ -25,8 +27,8 @@ async def flush_redis_before_each_test():
 
 @pytest.fixture(autouse=True)
 def override_rate_limiter_dependency():
-    """Override the RateLimiter dependency globally for tests except explicit rate limit tests."""
     from router import main
+    print("[DEBUG] RateLimiter id in override fixture:", id(RateLimiter))
     # Save original dependency overrides
     original_override = main.app.dependency_overrides.get(RateLimiter)
     main.app.dependency_overrides[RateLimiter] = lambda: RateLimiter(times=1000, seconds=60)

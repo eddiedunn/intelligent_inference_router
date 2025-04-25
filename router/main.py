@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPExcep
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_limiter.depends import RateLimiter
+print("[DEBUG] RateLimiter id in main:", id(RateLimiter))
 from fastapi_limiter import FastAPILimiter
 import redis.asyncio as redis
 from router.settings import get_settings
