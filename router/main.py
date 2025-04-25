@@ -236,8 +236,9 @@ def create_app():
 
     # OpenAI-compatible /v1/chat/completions endpoint
     @app.post("/v1/chat/completions")
-    async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(rate_limiter_dep)):
+    async def chat_completions(request: Request, api_key=Depends(api_key_auth)):
         print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
+        await rate_limiter_dep(request)
         try:
             body = await request.json()
         except Exception:
