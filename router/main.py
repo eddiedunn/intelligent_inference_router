@@ -105,9 +105,17 @@ def get_rate_limiter():
 
 from starlette.responses import Response
 async def rate_limiter_dep(request: Request):
+    print("[DEBUG] rate_limiter_dep called")
     limiter = get_rate_limiter()
     dummy_response = Response()
-    await limiter(request, dummy_response)
+    try:
+        await limiter(request, dummy_response)
+    except HTTPException as e:
+        print(f"[DEBUG] rate_limiter_dep raising HTTPException: {e.status_code} {e.detail}")
+        raise
+    except Exception as e:
+        print(f"[DEBUG] rate_limiter_dep caught non-HTTPException: {e}")
+        raise
 
 # --- App Factory for Testability ---
 def create_app():
