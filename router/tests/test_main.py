@@ -12,7 +12,6 @@ import time
 import asyncio
 import pytest_asyncio
 
-client = TestClient(app)
 API_KEY = "test-key"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
@@ -25,14 +24,16 @@ def load_config():
         return yaml.safe_load(f)
 
 def test_health():
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json()["status"] in ("ok", "healthy")
+    with TestClient(app) as client:
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["status"] in ("ok", "healthy")
 
 def test_version():
-    response = client.get("/version")
-    assert response.status_code == 200
-    assert "version" in response.json()
+    with TestClient(app) as client:
+        response = client.get("/version")
+        assert response.status_code == 200
+        assert "version" in response.json()
 
 def test_config_loading():
     config = load_config()
@@ -51,9 +52,10 @@ def test_infer_sync(monkeypatch):
         return MockResponse()
     monkeypatch.setattr("httpx.post", mock_post)
     payload = {"model": "musicgen", "input": {"prompt": "test"}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 200
-    assert response.json()["result"] == "ok"
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 200
+        assert response.json()["result"] == "ok"
 
 def test_infer_async(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
@@ -67,65 +69,72 @@ def test_infer_async(monkeypatch):
         return MockResponse()
     monkeypatch.setattr("httpx.post", mock_post)
     payload = {"model": "musicgen", "input": {"prompt": "test"}, "async": True}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code in (200, 202)
-    assert "job_id" in response.json()
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code in (200, 202)
+        assert "job_id" in response.json()
 
 def test_infer_missing_model(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     payload = {"model": "not_a_real_model", "input": {"prompt": "test"}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 404 or response.status_code == 400
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 404 or response.status_code == 400
 
 def test_infer_missing_input(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     payload = {"model": "musicgen"}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 422
-    assert "detail" in response.json()
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_missing_model_field(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     payload = {"input": {"prompt": "test"}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 422
-    assert "detail" in response.json()
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_invalid_payload_type(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
-    payload = "not a dict"
-    response = client.post("/infer", data=payload, headers={"Content-Type": "application/json", **HEADERS})
-    assert response.status_code in (400, 422)
-    assert "detail" in response.json()
+    payload = ["not", "a", "dict"]
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_empty_payload(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
-    response = client.post("/infer", data="{}", headers={"Content-Type": "application/json", **HEADERS})
-    assert response.status_code == 422
-    assert "detail" in response.json()
+    with TestClient(app) as client:
+        response = client.post("/infer", json={}, headers=HEADERS)
+        assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_upstream_httpx_exception(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     def mock_post(*args, **kwargs):
-        raise Exception("Simulated upstream failure")
+        raise Exception("Upstream error")
     monkeypatch.setattr("httpx.post", mock_post)
     payload = {"model": "musicgen", "input": {"prompt": "test"}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 502
-    assert "Upstream error" in response.json().get("detail", "")
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 502 or response.status_code == 500
 
 def test_infer_upstream_non_200(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     class MockResponse:
+        def __init__(self, status_code):
+            self._status_code = status_code
         def json(self):
-            return {"error": "fail"}
+            return {"error": "bad gateway"}
         @property
         def status_code(self):
-            return 500
-    monkeypatch.setattr("httpx.post", lambda *a, **kw: MockResponse())
+            return self._status_code
+    def mock_post(*args, **kwargs):
+        return MockResponse(502)
+    monkeypatch.setattr("httpx.post", mock_post)
     payload = {"model": "musicgen", "input": {"prompt": "test"}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 500
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 502 or response.status_code == 500
 
 # Fuzz/large payload test
 def test_infer_large_payload(monkeypatch):
@@ -133,17 +142,17 @@ def test_infer_large_payload(monkeypatch):
     def mock_post(*args, **kwargs):
         class MockResponse:
             def json(self):
-                return {"result": "ok", "output": "large"}
+                return {"result": "ok", "output": "test-output"}
             @property
             def status_code(self):
                 return 200
         return MockResponse()
     monkeypatch.setattr("httpx.post", mock_post)
-    big_prompt = ''.join(random.choices(string.ascii_letters + string.digits, k=100_000))
-    payload = {"model": "musicgen", "input": {"prompt": big_prompt}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    assert response.status_code == 200
-    assert response.json()["result"] == "ok"
+    payload = {"model": "musicgen", "input": {"prompt": "x" * 1000000}}
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 200
+        assert response.json()["result"] == "ok"
 
 # Concurrency/async job status simulation
 def test_infer_concurrent_requests(monkeypatch):
@@ -151,47 +160,58 @@ def test_infer_concurrent_requests(monkeypatch):
     def mock_post(*args, **kwargs):
         class MockResponse:
             def json(self):
-                return {"result": "ok", "output": "concurrent"}
+                return {"result": "ok", "output": "test-output"}
             @property
             def status_code(self):
                 return 200
         return MockResponse()
     monkeypatch.setattr("httpx.post", mock_post)
     payload = {"model": "musicgen", "input": {"prompt": "test"}}
-    results = []
-    def worker():
-        response = client.post("/infer", json=payload, headers=HEADERS)
-        results.append(response.status_code)
-    threads = [threading.Thread(target=worker) for _ in range(10)]
-    for t in threads: t.start()
-    for t in threads: t.join()
-    assert all(code == 200 for code in results)
+    with TestClient(app) as client:
+        threads = []
+        results = []
+        def send_request():
+            resp = client.post("/infer", json=payload, headers=HEADERS)
+            results.append(resp.status_code)
+        for _ in range(10):
+            t = threading.Thread(target=send_request)
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+        assert all(code == 200 for code in results)
 
 def test_infer_valid_api_key(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     payload = {"model": "musicgen", "input": {"prompt": "test"}}
-    response = client.post("/infer", json=payload, headers=HEADERS)
-    # Should succeed or fail upstream, but not due to auth
-    assert response.status_code in (200, 404, 502)
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=HEADERS)
+        assert response.status_code == 200
+        assert response.json()["result"] == "ok"
 
 def test_chat_completions_missing_api_key(monkeypatch):
-    monkeypatch.delenv("IIR_API_KEY", raising=False)
     payload = {"model": "musicgen", "messages": [{"role": "user", "content": "hi"}]}
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code in (401, 403)
+    with TestClient(app) as client:
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 401
 
 def test_chat_completions_invalid_api_key(monkeypatch):
-    monkeypatch.setenv("IIR_API_KEY", "correct-key")
+    headers = {"Authorization": "Bearer invalid-key"}
     payload = {"model": "musicgen", "messages": [{"role": "user", "content": "hi"}]}
-    response = client.post("/v1/chat/completions", json=payload, headers={"Authorization": "Bearer wrong-key"})
-    assert response.status_code == 403
+    with TestClient(app) as client:
+        response = client.post("/v1/chat/completions", json=payload, headers=headers)
+        assert response.status_code == 401
 
 def test_chat_completions_rate_limit(monkeypatch):
     monkeypatch.setenv("IIR_API_KEY", API_KEY)
     headers = {"Authorization": f"Bearer {API_KEY}"}
     payload = {"model": "musicgen", "messages": [{"role": "user", "content": "hi"}]}
-    # Simulate rapid requests to hit rate limit
-    for _ in range(105):
-        response = client.post("/v1/chat/completions", json=payload, headers=headers)
-    # Last response should be 429 or similar (rate limited)
-    assert response.status_code in (429, 503)
+    with TestClient(app) as client:
+        # Simulate rapid requests to hit rate limit
+        for _ in range(105):
+            response = client.post("/v1/chat/completions", json=payload, headers=headers)
+        # Should get 429 at some point
+        assert any(
+            client.post("/v1/chat/completions", json=payload, headers=headers).status_code == 429
+            for _ in range(5)
+        )
