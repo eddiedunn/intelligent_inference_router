@@ -87,224 +87,227 @@ def configure_udp_logging():
         logging.getLogger().addHandler(handler)
         logging.getLogger().info(f"UDP log forwarding enabled to {sink}")
 
-configure_udp_logging()
+# --- App Factory for Testability ---
+def create_app():
+    configure_udp_logging()
+    print("[DEBUG] APP STARTUP: FastAPI app is being created (via factory)")
+    app = FastAPI(title="Intelligent Inference Router", version="1.0")
 
-print("[DEBUG] APP STARTUP: FastAPI app is being created")
-app = FastAPI(title="Intelligent Inference Router", version="1.0")
+    # Middleware to log every incoming request
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        try:
+            body = await request.body()
+        except Exception as e:
+            body = f"[ERROR reading body: {e}]"
+        print(f"[DEBUG] MIDDLEWARE: Incoming request path={request.url.path} body={body}")
+        response = await call_next(request)
+        return response
 
-# Middleware to log every incoming request
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    try:
-        body = await request.body()
-    except Exception as e:
-        body = f"[ERROR reading body: {e}]"
-    print(f"[DEBUG] MIDDLEWARE: Incoming request path={request.url.path} body={body}")
-    response = await call_next(request)
-    return response
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    import traceback
-    logger.error(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}", exc_info=True)
-    print(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}")
-    traceback.print_exc()
-    return JSONResponse(status_code=502, content={"detail": "Internal Server Error"})
-
-instrument_app(app)
-
-# CORS (optional, for local dev)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Dummy version for test
-@app.get("/version")
-def version():
-    return {"version": "0.1.0"}
-
-# Dummy health endpoint (already present, but ensure it's there)
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-# Load config.yaml for service discovery
-def load_config():
-    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-
-class InferRequest(BaseModel):
-    model: str
-    input: dict
-    async_: Optional[bool] = False
-
-@app.post("/infer", dependencies=[Depends(api_key_auth)])
-def infer(req: InferRequest):
-    # Load config and get service URL
-    config = load_config()
-    services = config.get("services", {})
-    service_url = services.get(req.model)
-    if not service_url:
-        raise HTTPException(status_code=404, detail="Model not found")
-    # Forward the request to the BentoML service (sync or async)
-    payload = {"input": req.input}
-    if req.async_:
-        payload["async"] = True
-    try:
-        resp = httpx.post(f"{service_url}/infer", json=payload)
-        return JSONResponse(content=resp.json(), status_code=resp.status_code)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Upstream error: {e}")
-
-# The following endpoint depends on undefined variables/settings and is commented out for test passing.
-# @app.get("/v1/models", dependencies=[Depends(api_key_auth), Depends(RateLimiter(times=settings.rate_limit_rpm, seconds=60))])
-# def list_models():
-#     # Only local model is enabled; others are placeholders
-#     data = [
-#         {"id": settings.local_model_id, "object": "model", "owned_by": "local", "permission": []},
-#         {"id": "claude-3.7-sonnet", "object": "model", "owned_by": "anthropic", "permission": []},
-#         {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai", "permission": []}
-#     ]
-#     return {"object": "list", "data": data}
-
-# --- Dependency for testable rate limiter ---
-def get_rate_limiter():
-    print("[DEBUG] ENTRY: get_rate_limiter dependency called")
-    try:
-        from fastapi_limiter.depends import RateLimiter
-        print("[DEBUG] fastapi_limiter.depends.RateLimiter imported successfully")
-        limiter = RateLimiter(times=100, seconds=60)
-        print(f"[DEBUG] RateLimiter instantiated: {limiter}")
-        return limiter
-    except Exception as e:
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
         import traceback
-        print(f"[DEBUG] ERROR in get_rate_limiter: {e}")
+        logger.error(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}", exc_info=True)
+        print(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}")
         traceback.print_exc()
-        raise
+        return JSONResponse(status_code=502, content={"detail": "Internal Server Error"})
 
-# Proper dependency for FastAPILimiter
-from starlette.responses import Response
-async def rate_limiter_dep(request: Request):
-    limiter = get_rate_limiter()
-    dummy_response = Response()
-    await limiter(request, dummy_response)
+    instrument_app(app)
 
-# OpenAI-compatible /v1/chat/completions endpoint
-@app.post("/v1/chat/completions")
-async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(rate_limiter_dep)):
-    print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
+    # CORS (optional, for local dev)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    # --- Manual Rate Limiting (now testable) ---
-    # (No need to await rate_limiter; dependency already executed)
+    # Dummy version for test
+    @app.get("/version")
+    def version():
+        return {"version": "0.1.0"}
 
-    model = body.get("model")
-    messages = body.get("messages")
-    stream = body.get("stream") or request.query_params.get("stream") == "true"
-    if not model or not messages:
-        return JSONResponse(status_code=400, content={"error": {"message": "Missing required fields: model or messages", "type": "invalid_request_error", "param": None, "code": None}})
-    prompt = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
-    if len(prompt) > 2048:
-        return JSONResponse(status_code=413, content={"error": {"message": "Request exceeds max token limit", "type": "invalid_request_error", "param": None, "code": "token_limit"}})
-    provider_map = {
-        "gpt": "openai",
-        "claude": "anthropic",
-        "grok": "grok",
-        "openrouter": "openrouter",
-        "openllama": "openllama",
-    }
-    provider = None
-    model_l = model.lower()
-    for prefix, name in provider_map.items():
-        if model_l.startswith(prefix) or model_l.split("-", 1)[0] == prefix:
-            provider = name
-            break
-    print(f"[DEBUG] /v1/chat/completions: incoming model={model}")
-    # Print the model-to-provider mapping
-    from router import provider_clients
-    print(f"[DEBUG] /v1/chat/completions: MODEL_PROVIDER_MAP={getattr(provider_clients, 'MODEL_PROVIDER_MAP', 'N/A')}")
-    print(f"[DEBUG] /v1/chat/completions: computed provider={provider}")
-    if not provider:
-        return JSONResponse(status_code=400, content={"error": {"message": "Unknown remote provider for model", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
+    # Dummy health endpoint (already present, but ensure it's there)
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
 
-    # --- FORCE MOCK RESPONSE for all recognized providers when MOCK_PROVIDERS=1 ---
-    if is_mock_providers():
-        print(f"[DEBUG] MOCK_PROVIDERS active: returning mock response for provider={provider}")
-        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-        return JSONResponse(status_code=200, content=response)
+    # Load config.yaml for service discovery
+    def load_config():
+        config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
 
-    # Real provider logic (should never be reached in MOCK_PROVIDERS=1)
-    print(f"[DEBUG] /v1/chat/completions: provider={provider}")
-    from router import provider_clients
-    client_obj = provider_clients.PROVIDER_CLIENTS.get(provider)
-    print(f"[DEBUG] /v1/chat/completions: provider client object={client_obj}, type={type(client_obj)}, id(class)={id(type(client_obj))}")
-    print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
-    try:
-        print(f"[DEBUG] About to call chat_completions on {client_obj}")
-        result = await client_obj.chat_completions()
-        print(f"[DEBUG] chat_completions result: {result}")
-        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-        return JSONResponse(status_code=200, content=response)
-    except Exception as e:
-        print(f"[DEBUG] Exception in real provider call: {e}")
-        return JSONResponse(status_code=502, content={"error": {"message": f"Remote provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
+    class InferRequest(BaseModel):
+        model: str
+        input: dict
+        async_: Optional[bool] = False
 
-# Simple in-memory job store (replace with persistent store in production)
-ASYNC_JOB_STORE: Dict[str, Dict] = {}
+    @app.post("/infer", dependencies=[Depends(api_key_auth)])
+    def infer(req: InferRequest):
+        # Load config and get service URL
+        config = load_config()
+        services = config.get("services", {})
+        service_url = services.get(req.model)
+        if not service_url:
+            raise HTTPException(status_code=404, detail="Model not found")
+        # Forward the request to the BentoML service (sync or async)
+        payload = {"input": req.input}
+        if req.async_:
+            payload["async"] = True
+        try:
+            resp = httpx.post(f"{service_url}/infer", json=payload)
+            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Upstream error: {e}")
 
-@app.post("/v1/async/chat/completions")
-async def submit_async_chat_completion(request: Request, background_tasks: BackgroundTasks):
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(status_code=400, content={"detail": "Invalid JSON body."})
-    model = body.get("model")
-    messages = body.get("messages")
-    if not model or not messages:
-        return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
-    job_id = str(uuid.uuid4())
-    ASYNC_JOB_STORE[job_id] = {"status": "pending", "result": None}
-    async def run_job():
-        await asyncio.sleep(1)  # Simulate async work
-        ASYNC_JOB_STORE[job_id]["status"] = "complete"
-        ASYNC_JOB_STORE[job_id]["result"] = {"id": job_id, "object": "chat.completion", "choices": [{"message": {"content": "Hello from async!"}}]}
-    background_tasks.add_task(run_job)
-    return {"job_id": job_id, "status": "pending"}
+    # The following endpoint depends on undefined variables/settings and is commented out for test passing.
+    # @app.get("/v1/models", dependencies=[Depends(api_key_auth), Depends(RateLimiter(times=settings.rate_limit_rpm, seconds=60))])
+    # def list_models():
+    #     # Only local model is enabled; others are placeholders
+    #     data = [
+    #         {"id": settings.local_model_id, "object": "model", "owned_by": "local", "permission": []},
+    #         {"id": "claude-3.7-sonnet", "object": "model", "owned_by": "anthropic", "permission": []},
+    #         {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai", "permission": []}
+    #     ]
+    #     return {"object": "list", "data": data}
 
-@app.get("/v1/async/chat/completions/{job_id}")
-async def poll_async_chat_completion(job_id: str):
-    job = ASYNC_JOB_STORE.get(job_id)
-    if not job:
-        return JSONResponse(status_code=404, content={"detail": "Job not found"})
-    if job["status"] != "complete":
-        return {"job_id": job_id, "status": job["status"]}
-    return job["result"]
+    # --- Dependency for testable rate limiter ---
+    def get_rate_limiter():
+        print("[DEBUG] ENTRY: get_rate_limiter dependency called")
+        try:
+            from fastapi_limiter.depends import RateLimiter
+            print("[DEBUG] fastapi_limiter.depends.RateLimiter imported successfully")
+            limiter = RateLimiter(times=100, seconds=60)
+            print(f"[DEBUG] RateLimiter instantiated: {limiter}")
+            return limiter
+        except Exception as e:
+            import traceback
+            print(f"[DEBUG] ERROR in get_rate_limiter: {e}")
+            traceback.print_exc()
+            raise
 
-@app.on_event("startup")
-async def startup_event():
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    if "redis://redis:" in redis_url:
-        redis_url = "redis://localhost:6379/0"
-    redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
-    await FastAPILimiter.init(redis_client)
+    # Proper dependency for FastAPILimiter
+    from starlette.responses import Response
+    async def rate_limiter_dep(request: Request):
+        limiter = get_rate_limiter()
+        dummy_response = Response()
+        await limiter(request, dummy_response)
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    redis_client = FastAPILimiter.redis
-    if redis_client:
-        await redis_client.close()
+    # OpenAI-compatible /v1/chat/completions endpoint
+    @app.post("/v1/chat/completions")
+    async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(rate_limiter_dep)):
+        print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
 
-@app.get("/metrics")
-def metrics():
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+        # --- Manual Rate Limiting (now testable) ---
+        # (No need to await rate_limiter; dependency already executed)
 
-print("[DEBUG] main.py fully loaded")
-logger.info("[DEBUG] main.py fully loaded")
+        model = body.get("model")
+        messages = body.get("messages")
+        stream = body.get("stream") or request.query_params.get("stream") == "true"
+        if not model or not messages:
+            return JSONResponse(status_code=400, content={"error": {"message": "Missing required fields: model or messages", "type": "invalid_request_error", "param": None, "code": None}})
+        prompt = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
+        if len(prompt) > 2048:
+            return JSONResponse(status_code=413, content={"error": {"message": "Request exceeds max token limit", "type": "invalid_request_error", "param": None, "code": "token_limit"}})
+        provider_map = {
+            "gpt": "openai",
+            "claude": "anthropic",
+            "grok": "grok",
+            "openrouter": "openrouter",
+            "openllama": "openllama",
+        }
+        provider = None
+        model_l = model.lower()
+        for prefix, name in provider_map.items():
+            if model_l.startswith(prefix) or model_l.split("-", 1)[0] == prefix:
+                provider = name
+                break
+        print(f"[DEBUG] /v1/chat/completions: incoming model={model}")
+        # Print the model-to-provider mapping
+        from router import provider_clients
+        print(f"[DEBUG] /v1/chat/completions: MODEL_PROVIDER_MAP={getattr(provider_clients, 'MODEL_PROVIDER_MAP', 'N/A')}")
+        print(f"[DEBUG] /v1/chat/completions: computed provider={provider}")
+        if not provider:
+            return JSONResponse(status_code=400, content={"error": {"message": "Unknown remote provider for model", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
+
+        # --- FORCE MOCK RESPONSE for all recognized providers when MOCK_PROVIDERS=1 ---
+        if is_mock_providers():
+            print(f"[DEBUG] MOCK_PROVIDERS active: returning mock response for provider={provider}")
+            response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+            return JSONResponse(status_code=200, content=response)
+
+        # Real provider logic (should never be reached in MOCK_PROVIDERS=1)
+        print(f"[DEBUG] /v1/chat/completions: provider={provider}")
+        from router import provider_clients
+        client_obj = provider_clients.PROVIDER_CLIENTS.get(provider)
+        print(f"[DEBUG] /v1/chat/completions: provider client object={client_obj}, type={type(client_obj)}, id(class)={id(type(client_obj))}")
+        print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
+        try:
+            print(f"[DEBUG] About to call chat_completions on {client_obj}")
+            result = await client_obj.chat_completions()
+            print(f"[DEBUG] chat_completions result: {result}")
+            response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+            return JSONResponse(status_code=200, content=response)
+        except Exception as e:
+            print(f"[DEBUG] Exception in real provider call: {e}")
+            return JSONResponse(status_code=502, content={"error": {"message": f"Remote provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
+
+    # Simple in-memory job store (replace with persistent store in production)
+    ASYNC_JOB_STORE: Dict[str, Dict] = {}
+
+    @app.post("/v1/async/chat/completions")
+    async def submit_async_chat_completion(request: Request, background_tasks: BackgroundTasks):
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"detail": "Invalid JSON body."})
+        model = body.get("model")
+        messages = body.get("messages")
+        if not model or not messages:
+            return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
+        job_id = str(uuid.uuid4())
+        ASYNC_JOB_STORE[job_id] = {"status": "pending", "result": None}
+        async def run_job():
+            await asyncio.sleep(1)  # Simulate async work
+            ASYNC_JOB_STORE[job_id]["status"] = "complete"
+            ASYNC_JOB_STORE[job_id]["result"] = {"id": job_id, "object": "chat.completion", "choices": [{"message": {"content": "Hello from async!"}}]}
+        background_tasks.add_task(run_job)
+        return {"job_id": job_id, "status": "pending"}
+
+    @app.get("/v1/async/chat/completions/{job_id}")
+    async def poll_async_chat_completion(job_id: str):
+        job = ASYNC_JOB_STORE.get(job_id)
+        if not job:
+            return JSONResponse(status_code=404, content={"detail": "Job not found"})
+        if job["status"] != "complete":
+            return {"job_id": job_id, "status": job["status"]}
+        return job["result"]
+
+    @app.on_event("startup")
+    async def startup_event():
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        if "redis://redis:" in redis_url:
+            redis_url = "redis://localhost:6379/0"
+        redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        await FastAPILimiter.init(redis_client)
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        redis_client = FastAPILimiter.redis
+        if redis_client:
+            await redis_client.close()
+
+    @app.get("/metrics")
+    def metrics():
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    return app
+
+# Default app instance for production
+app = create_app()

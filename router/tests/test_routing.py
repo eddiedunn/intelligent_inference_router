@@ -1,7 +1,8 @@
 import pytest
 import asyncio
-from router.main import app
+from router.main import app, create_app
 from httpx import ASGITransport, AsyncClient
+from unittest.mock import patch
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
 
@@ -30,8 +31,11 @@ async def test_routing_remote_models(async_client, model, expected_provider, tes
 # Test local path (musicgen)
 @pytest.mark.asyncio
 async def test_routing_local_model(monkeypatch, test_api_key):
-    # Patch generate_local to return a dummy response
+    # Patch generate_local at the import path used by the app (robust)
     monkeypatch.setattr("router.providers.local_vllm.generate_local", lambda body: {"result": "local"})
+    # Also patch vllm_base_url in settings if needed
+    monkeypatch.setattr("router.providers.local_vllm.settings", "vllm_base_url", "http://dummy")
+    app = create_app()
     payload = {
         "model": "musicgen",
         "messages": [{"role": "user", "content": "hi"}]
@@ -39,6 +43,8 @@ async def test_routing_local_model(monkeypatch, test_api_key):
     headers = {"Authorization": f"Bearer {test_api_key}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
+    if resp.status_code != 200:
+        print(f"[DEBUG] test_routing_local_model failed: {resp.status_code} {resp.text}")
     assert resp.status_code == 200
     # Accept either new or old format
     assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
