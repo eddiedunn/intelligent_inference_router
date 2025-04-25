@@ -18,10 +18,7 @@ async def test_chat_completions_missing_messages(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     if resp.status_code != 400 or "Missing required fields" not in resp.text:
-        import pytest
-        print("[DEBUG] missing_messages resp.status_code=", resp.status_code)
-        print("[DEBUG] missing_messages resp.text=", resp.text)
-        pytest.fail(f"Unexpected response: status={resp.status_code}, text={resp.text}")
+        raise AssertionError(f"[DEBUG] missing_messages resp.status_code={resp.status_code}\n[DEBUG] missing_messages resp.text={resp.text}")
     assert resp.status_code == 400
     assert "Missing required fields" in resp.text
 
@@ -40,10 +37,7 @@ async def test_chat_completions_token_limit(test_api_key):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     if resp.status_code != 413 or "token limit" not in resp.text:
-        import pytest
-        print("[DEBUG] token_limit resp.status_code=", resp.status_code)
-        print("[DEBUG] token_limit resp.text=", resp.text)
-        pytest.fail(f"Unexpected response: status={resp.status_code}, text={resp.text}")
+        raise AssertionError(f"[DEBUG] token_limit resp.status_code={resp.status_code}\n[DEBUG] token_limit resp.text={resp.text}")
     assert resp.status_code == 413
     assert "token limit" in resp.text
 
