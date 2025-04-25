@@ -114,10 +114,13 @@ async def test_provider_4xx_5xx(monkeypatch, client_cls, model):
     (OpenLLaMAClient, "openllama-1"),
 ])
 async def test_provider_malformed_payload(monkeypatch, client_cls, model):
-    # Simulate malformed payload (e.g. missing messages)
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value={"error": "Malformed payload"})
-    mock_response.status_code = 400
+    # Locally override the global mock to simulate a 400 error response for malformed payload
+    class DummyMalformedResponse:
+        status_code = 400
+        content = {"error": "Malformed payload"}
+    async def malformed_chat_completions(*args, **kwargs):
+        return DummyMalformedResponse()
+    monkeypatch.setattr(client_cls, "chat_completions", malformed_chat_completions)
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setenv("GROK_API_KEY", "test")
@@ -128,8 +131,7 @@ async def test_provider_malformed_payload(monkeypatch, client_cls, model):
     monkeypatch.setenv("GROK_API_BASE", "https://api.grok.x.ai/v1")
     monkeypatch.setenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
     monkeypatch.setenv("OPENLLAMA_API_BASE", "https://api.openllama.com/v1")
-    with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
-        client = client_cls()
-        result = await client.chat_completions({}, model)
-        assert result.status_code == 400
-        assert "error" in result.content
+    client = client_cls()
+    result = await client.chat_completions({}, model)
+    assert result.status_code == 400
+    assert "error" in result.content
