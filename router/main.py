@@ -236,15 +236,14 @@ def create_app():
 
     # OpenAI-compatible /v1/chat/completions endpoint
     @app.post("/v1/chat/completions")
-    async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limiter=Depends(rate_limiter_dep)):
+    async def chat_completions(request: Request, api_key=Depends(api_key_auth)):
         print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
+        # Explicitly call the rate limiter at the top
+        await rate_limiter_dep(request)
         try:
             body = await request.json()
         except Exception:
             return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
-
-        # --- Manual Rate Limiting (now testable) ---
-        # (No need to await rate_limiter; dependency already executed)
 
         model = body.get("model")
         messages = body.get("messages")
@@ -268,26 +267,22 @@ def create_app():
                 provider = name
                 break
         print(f"[DEBUG] /v1/chat/completions: incoming model={model}")
-        # Print the model-to-provider mapping
         from router import provider_clients
         print(f"[DEBUG] /v1/chat/completions: MODEL_PROVIDER_MAP={getattr(provider_clients, 'MODEL_PROVIDER_MAP', 'N/A')}")
         print(f"[DEBUG] /v1/chat/completions: computed provider={provider}")
         if not provider:
             return JSONResponse(status_code=400, content={"error": {"message": "Unknown remote provider for model", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
-        # --- FORCE MOCK RESPONSE for all recognized providers when MOCK_PROVIDERS=1 ---
         if is_mock_providers():
             print(f"[DEBUG] MOCK_PROVIDERS active: returning mock response for provider={provider}")
             response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
             return JSONResponse(status_code=200, content=response)
 
-        # Real provider logic (should never be reached in MOCK_PROVIDERS=1)
         print(f"[DEBUG] /v1/chat/completions: provider={provider}")
         from router import provider_clients
         client_obj = provider_clients.PROVIDER_CLIENTS.get(provider)
         print(f"[DEBUG] /v1/chat/completions: provider client object={client_obj}, type={type(client_obj)}, id(class)={id(type(client_obj))}")
         print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
-        # Only catch exceptions you intend to handle
         try:
             print(f"[DEBUG] About to call chat_completions on {client_obj}")
             result = await client_obj.chat_completions()
