@@ -201,15 +201,10 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
     try:
         body = await request.json()
     except Exception:
-        return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON body.", "type": "invalid_request_error", "param": None, "code": None}})
+        return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
 
     # --- Manual Rate Limiting (now testable) ---
-    try:
-        await rate_limiter
-    except HTTPException as e:
-        if e.status_code == 429:
-            return JSONResponse(status_code=429, content={"error": {"message": "Rate limit exceeded", "type": "rate_limit_error", "param": None, "code": "rate_limit_exceeded"}})
-        raise
+    # (No need to await rate_limiter; dependency already executed)
 
     model = body.get("model")
     messages = body.get("messages")
