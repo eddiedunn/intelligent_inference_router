@@ -1,3 +1,40 @@
+import os
+print("[DEBUG] checkpoint 1: after os import")
+MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
+print(f"[DEBUG] checkpoint 3: after MOCK_PROVIDERS eval, MOCK_PROVIDERS={MOCK_PROVIDERS}")
+if MOCK_PROVIDERS:
+    from router.provider_clients import openai, anthropic, grok, openrouter, openllama
+    print("[DEBUG] checkpoint 4: after provider_clients imports")
+    import logging
+    print("[DEBUG] checkpoint 2: after logging import")
+    logger = logging.getLogger("uvicorn.error")
+    dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+    async def dummy_chat_completions(self, *args, **kwargs):
+        logger.info("[DEBUG] dummy_chat_completions called")
+        return dummy_resp
+    for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
+        cls.chat_completions = dummy_chat_completions
+    import router.providers.local_vllm
+    print("[DEBUG] checkpoint 5: after local_vllm import")
+    async def dummy_generate_local(body):
+        return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+    router.providers.local_vllm.generate_local = dummy_generate_local
+    # Rebuild PROVIDER_CLIENTS registry with patched classes
+    from router import provider_clients
+    print("[DEBUG] checkpoint 6: after provider_clients registry import")
+    provider_clients.PROVIDER_CLIENTS = {
+        "openai": openai.OpenAIClient(),
+        "anthropic": anthropic.AnthropicClient(),
+        "grok": grok.GrokClient(),
+        "openrouter": openrouter.OpenRouterClient(),
+        "openllama": openllama.OpenLLaMAClient(),
+    }
+    logger.info(f"[DEBUG] PATCH SITE: id(PROVIDER_CLIENTS)={id(provider_clients.PROVIDER_CLIENTS)}")
+    for k, v in provider_clients.PROVIDER_CLIENTS.items():
+        logger.info(f"[DEBUG] PATCH SITE: {k} class={v.__class__} id(class)={id(v.__class__)}")
+    print("[DEBUG] checkpoint 7: after PROVIDER_CLIENTS patch")
+
+print("[DEBUG] checkpoint 8: before FastAPI import")
 # FastAPI entry point for IIR MVP Phase 1a
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException
 from fastapi.responses import JSONResponse
@@ -28,6 +65,7 @@ import os
 from typing import Optional
 import httpx
 import json
+import types
 
 # Attach UDP log handler if REMOTE_LOG_SINK is set
 def configure_udp_logging():
@@ -41,30 +79,13 @@ def configure_udp_logging():
 
 configure_udp_logging()
 
-MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
-if MOCK_PROVIDERS:
-    from router.provider_clients import openai, anthropic, grok, openrouter, openllama
-    dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-    async def dummy_chat_completions(self, *args, **kwargs):
-        # Accept any args/kwargs and always return the dummy response
-        return dummy_resp
-    for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
-        cls.chat_completions = dummy_chat_completions
-    import router.providers.local_vllm
-    async def dummy_generate_local(body):
-        return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-    router.providers.local_vllm.generate_local = dummy_generate_local
-    # Rebuild PROVIDER_CLIENTS registry with patched classes
-    from router import provider_clients
-    provider_clients.PROVIDER_CLIENTS = {
-        "openai": openai.OpenAIClient(),
-        "anthropic": anthropic.AnthropicClient(),
-        "grok": grok.GrokClient(),
-        "openrouter": openrouter.OpenRouterClient(),
-        "openllama": openllama.OpenLLaMAClient(),
-    }
-
 app = FastAPI(title="Intelligent Inference Router", version="1.0")
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger = logging.getLogger("uvicorn.error")
+    logger.error(f"[DEBUG] GLOBAL EXCEPTION: {type(exc)}: {exc}", exc_info=True)
+    return JSONResponse(status_code=502, content={"detail": "Internal Server Error"})
 
 instrument_app(app)
 
@@ -130,6 +151,7 @@ def infer(req: InferRequest):
 # OpenAI-compatible /v1/chat/completions endpoint
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request, body: dict = Body(...), rate_limiter=Depends(RateLimiter(times=100, seconds=60)), api_key=Depends(api_key_auth)):
+    logger.info("[DEBUG] HANDLER ENTRY: /v1/chat/completions")
     # --- DEBUG: Log RateLimiter key info ---
     client_ip = request.headers.get("X-Forwarded-For") or request.client.host
     rl_key = f"rl:{client_ip}:{request.url.path}"
@@ -211,21 +233,34 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
         router_requests_errors_total.inc()
         return JSONResponse(status_code=400, content={"detail": f"Unknown remote provider for model: {model}"})
     client = PROVIDER_CLIENTS[provider]
+    logger.info(f"[DEBUG] HANDLER: id(PROVIDER_CLIENTS)={id(PROVIDER_CLIENTS)}")
+    for k, v in PROVIDER_CLIENTS.items():
+        logger.info(f"[DEBUG] HANDLER: {k} class={v.__class__} id(class)={id(v.__class__)}")
+    logger.info(f"[DEBUG] In handler: client={client}, class={client.__class__}, id={id(client.__class__)}")
     logger.info(f"[DEBUG] Using client: {client} for provider: {provider}")
+    logger.info(f"[DEBUG] Before provider call: about to await client.chat_completions")
     try:
         result = await client.chat_completions(body, model)
+        logger.info(f"[DEBUG] After provider call: type(result)={type(result)}, result={result}")
         logger.info("Remote provider call succeeded", extra={"event": "provider_success", "provider": provider})
     except Exception as e:
         logger.error(f"[DEBUG] Exception in provider call: {e}, type(result)={type(result) if 'result' in locals() else 'N/A'}", extra={"event": "provider_error", "error": str(e), "provider": provider})
         router_requests_errors_total.inc()
         return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
     # Optionally cache remote responses
-    # If result is a dict, wrap in JSONResponse with 200
     if isinstance(result, dict):
-        await cache.set(cache_key, json.dumps(result), ex=3600)
+        logger.info(f"[DEBUG] Entering dict branch for result: {result}")
+        try:
+            await cache.set(cache_key, json.dumps(result), ex=3600)
+        except Exception as cache_exc:
+            logger.error(f"[DEBUG] Cache serialization error: {cache_exc}, result={result}")
         return JSONResponse(status_code=200, content=result)
     else:
-        await cache.set(cache_key, json.dumps(result.content), ex=3600)
+        logger.info(f"[DEBUG] Entering object branch for result: {result}")
+        try:
+            await cache.set(cache_key, json.dumps(result.content), ex=3600)
+        except Exception as cache_exc:
+            logger.error(f"[DEBUG] Cache serialization error: {cache_exc}, result={getattr(result, 'content', None)}")
         return JSONResponse(status_code=getattr(result, 'status_code', 200), content=result.content)
 
 @app.on_event("startup")
@@ -240,3 +275,6 @@ async def startup_event():
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+print("[DEBUG] main.py fully loaded")
+logger.info("[DEBUG] main.py fully loaded")

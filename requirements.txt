@@ -16,3 +16,4 @@ fastapi-limiter
 pytest
 pytest-timeout
 git+https://github.com/eddiedunn/logflow.git@main#egg=logflow
+asgi-lifespan>=2.1.0
