@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, AsyncMock
 from router.main import app
+import os
 
 @pytest.mark.asyncio
 async def test_chat_completions_missing_model(test_api_key):
@@ -41,7 +42,7 @@ async def test_chat_completions_rate_limit_exceeded(test_api_key, monkeypatch):
     from fastapi import HTTPException
     # Patch get_rate_limiter to always raise HTTPException using a class with async __call__
     class Always429:
-        async def __call__(self, request):
+        async def __call__(self, request, response, *args, **kwargs):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
     monkeypatch.setattr("router.main.get_rate_limiter", lambda: Always429())
     payload = {"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "hi"}]}
@@ -51,6 +52,7 @@ async def test_chat_completions_rate_limit_exceeded(test_api_key, monkeypatch):
     assert "Rate limit exceeded" in resp.text
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(os.getenv("MOCK_PROVIDERS") == "1", reason="Mock providers enabled, upstream error not triggered")
 async def test_chat_completions_upstream_provider_error(test_api_key, monkeypatch):
     from router.provider_clients.openai import OpenAIClient
     async def raise_exc(*a, **kw):
