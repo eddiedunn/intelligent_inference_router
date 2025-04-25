@@ -1,9 +1,11 @@
 import os
+# Set MOCK_PROVIDERS=1 for all tests
+os.environ["MOCK_PROVIDERS"] = "1"
+
 # Set robust test API key env for all test processes BEFORE any app/config import
 TEST_API_KEY = "test-secret-key-robust"
 os.environ["IIR_API_KEY"] = TEST_API_KEY
 os.environ["IIR_ALLOWED_KEYS"] = TEST_API_KEY
-os.environ["MOCK_PROVIDERS"] = "1"
 
 import secrets
 import pytest
