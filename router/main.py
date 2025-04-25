@@ -27,6 +27,7 @@ import yaml
 import os
 from typing import Optional
 import httpx
+import json
 
 # Attach UDP log handler if REMOTE_LOG_SINK is set
 def configure_udp_logging():
@@ -130,7 +131,7 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
     if cached:
         logger.info("Cache hit", extra={"event": "cache_hit", "cache_key": cache_key})
         router_cache_hits_total.inc()
-        return JSONResponse(status_code=200, content=eval(cached))
+        return JSONResponse(status_code=200, content=json.loads(cached))
     else:
         logger.info("Cache miss", extra={"event": "cache_miss", "cache_key": cache_key})
         router_cache_misses_total.inc()
@@ -152,7 +153,7 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
             router_requests_errors_total.inc()
             return JSONResponse(status_code=502, content={"detail": "Local vLLM backend error: " + str(e)})
         # Cache response
-        await cache.set(cache_key, str(response), ex=3600)
+        await cache.set(cache_key, json.dumps(response), ex=3600)
         return JSONResponse(status_code=200, content=response)
     # Remote: route to provider
     from router.provider_clients import PROVIDER_CLIENTS
@@ -182,7 +183,7 @@ async def chat_completions(request: Request, body: dict = Body(...), rate_limite
         router_requests_errors_total.inc()
         return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
     # Optionally cache remote responses
-    await cache.set(cache_key, str(result.content), ex=3600)
+    await cache.set(cache_key, json.dumps(result.content), ex=3600)
     return JSONResponse(status_code=result.status_code, content=result.content)
 
 @app.on_event("startup")
