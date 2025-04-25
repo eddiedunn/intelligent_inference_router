@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from httpx import AsyncClient
+from fastapi.testclient import AsyncClient
 from router.main import app
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
@@ -31,7 +31,7 @@ def patch_provider_clients(monkeypatch):
     ("openllama-1", "openllama"),
 ])
 @pytest.mark.asyncio
-async def test_routing_remote_models(client, model, expected_provider, test_api_key):
+async def test_routing_remote_models(model, expected_provider, test_api_key):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]
