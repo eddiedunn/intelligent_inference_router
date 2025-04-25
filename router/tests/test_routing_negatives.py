@@ -2,6 +2,11 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 from router.main import app
+import os
+import secrets
+
+TEST_IIR_API_KEY = "test-" + secrets.token_urlsafe(16)
+os.environ["IIR_API_KEY"] = TEST_IIR_API_KEY
 
 client = TestClient(app)
 
@@ -62,3 +67,7 @@ def test_chat_completions_unknown_model():
     assert "Unknown remote provider for model" in resp.text
 
 # If /v1/completions endpoint exists, add similar negative tests here
+
+@pytest.fixture(scope="session")
+def test_api_key():
+    return TEST_IIR_API_KEY
