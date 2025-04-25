@@ -238,7 +238,7 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
     # --- FORCE MOCK RESPONSE for all recognized providers when MOCK_PROVIDERS=1 ---
     if is_mock_providers():
         print(f"[DEBUG] MOCK_PROVIDERS active: returning mock response for provider={provider}")
-        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
+        response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
         return JSONResponse(status_code=200, content=response)
 
     # Real provider logic (should never be reached in MOCK_PROVIDERS=1)
