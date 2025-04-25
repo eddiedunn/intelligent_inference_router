@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 from router.main import app
+from httpx import ASGITransport
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
 
@@ -28,7 +29,7 @@ async def test_routing_remote_models(async_client, model, expected_provider, tes
 
 # Test local path (musicgen)
 @pytest.mark.asyncio
-async def test_routing_local_model(monkeypatch, async_client, test_api_key):
+async def test_routing_local_model(monkeypatch, test_api_key):
     # Patch generate_local to return a dummy response
     monkeypatch.setattr("router.providers.local_vllm.generate_local", lambda body: {"result": "local"})
     payload = {
@@ -36,7 +37,8 @@ async def test_routing_local_model(monkeypatch, async_client, test_api_key):
         "messages": [{"role": "user", "content": "hi"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
-    resp = await async_client.post("/v1/chat/completions", json=payload, headers=headers)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp.status_code == 200
     # Accept either new or old format
     assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
