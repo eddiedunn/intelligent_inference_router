@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 from router.main import app
 import asyncio
+import os
 
 @pytest.fixture(autouse=True)
 def patch_provider_clients(monkeypatch):
@@ -29,13 +30,17 @@ def patch_provider_clients(monkeypatch):
     ("openrouter-1", "openrouter"),
     ("openllama-1", "openllama"),
 ])
-def test_routing_remote_models(model, expected_provider):
+def test_routing_remote_models(model, expected_provider, monkeypatch):
+    # Set a test API key in the environment
+    test_api_key = "test-router-key-123"
+    monkeypatch.setenv("ROUTER_API_KEY", test_api_key)
     client = TestClient(app)
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": "hello"}]
     }
-    resp = client.post("/v1/chat/completions", json=payload)
+    headers = {"Authorization": f"Bearer {test_api_key}"}
+    resp = client.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["object"] == "chat.completion"
