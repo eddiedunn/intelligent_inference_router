@@ -17,7 +17,8 @@ class OpenLLaMAClient(ProviderClient):
         payload["model"] = model
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, headers=self.headers, json=payload)
-        return ProviderResponse(content=resp.json(), raw_response=resp, status_code=resp.status_code)
+            data = await resp.json()
+            return ProviderResponse(status_code=resp.status_code, content=data)
 
     async def completions(self, payload, model, **kwargs):
         url = f"{self.base_url}/completions"
@@ -25,4 +26,5 @@ class OpenLLaMAClient(ProviderClient):
         payload["model"] = model
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, headers=self.headers, json=payload)
-        return ProviderResponse(content=resp.json(), raw_response=resp, status_code=resp.status_code)
+            data = await resp.json()
+            return ProviderResponse(status_code=resp.status_code, content=data)
