@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from router.main import app
 import redis.asyncio as redis
 from fastapi_limiter import FastAPILimiter
+import threading
 
 # Helper to mock config.yaml loading if needed
 def load_config():
