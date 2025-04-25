@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from router.main import app, create_app
+from router.main import app, create_app, rate_limiter_dep
 from httpx import ASGITransport, AsyncClient
 from unittest.mock import patch
 
@@ -30,12 +30,14 @@ async def test_routing_remote_models(async_client, model, expected_provider, tes
 
 # Test local path (musicgen)
 @pytest.mark.asyncio
-async def test_routing_local_model(monkeypatch, test_api_key):
-    # Patch generate_local at the import path used by the app (robust)
-    monkeypatch.setattr("router.providers.local_vllm.generate_local", lambda body: {"result": "local"})
-    # Also patch vllm_base_url in settings if needed
-    monkeypatch.setattr("router.providers.local_vllm.settings", "vllm_base_url", "http://dummy")
+async def test_routing_local_model(test_api_key):
     app = create_app()
+    async def no_op_rate_limiter(request):
+        pass
+    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+    async def mock_generate_local(body):
+        return {"result": "local"}
+    app.dependency_overrides["generate_local"] = mock_generate_local
     payload = {
         "model": "musicgen",
         "messages": [{"role": "user", "content": "hi"}]
@@ -46,7 +48,6 @@ async def test_routing_local_model(monkeypatch, test_api_key):
     if resp.status_code != 200:
         print(f"[DEBUG] test_routing_local_model failed: {resp.status_code} {resp.text}")
     assert resp.status_code == 200
-    # Accept either new or old format
     assert resp.json().get("result") == "local" or resp.json().get("object") == "chat.completion"
 
 # Test error on unknown model prefix
