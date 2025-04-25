@@ -144,6 +144,15 @@ def create_app():
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request, exc):
+        # If the cause is an HTTPException with status 429, propagate it as 429
+        # (FastAPI wraps dependency exceptions as RequestValidationError, but does not preserve the original status)
+        # We check for this by inspecting the request path and error details
+        for err in exc.errors():
+            if err.get('msg') == 'Rate limit exceeded' or err.get('type') == 'value_error' and 'rate limit' in str(err.get('msg', '')).lower():
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded"}
+                )
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
