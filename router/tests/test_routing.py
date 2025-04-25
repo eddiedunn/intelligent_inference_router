@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 from router.main import app
-from httpx import ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Remove per-file key generation, use test_api_key fixture from conftest.py
 
