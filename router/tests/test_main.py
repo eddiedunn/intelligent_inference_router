@@ -1,27 +1,8 @@
-import os
-import secrets
 import pytest
-import redis.asyncio as redis
-from fastapi_limiter import FastAPILimiter
 from fastapi.testclient import TestClient
 from router.main import app
-import yaml
-import random
-import string
-import threading
-import time
-import asyncio
-import pytest_asyncio
-
-API_KEY = "test-key"
-HEADERS = {"Authorization": f"Bearer {API_KEY}"}
-
-TEST_IIR_API_KEY = "test-" + secrets.token_urlsafe(16)
-os.environ["IIR_API_KEY"] = TEST_IIR_API_KEY
-
-@pytest.fixture(scope="session")
-def test_api_key():
-    return TEST_IIR_API_KEY
+import redis.asyncio as redis
+from fastapi_limiter import FastAPILimiter
 
 # Helper to mock config.yaml loading if needed
 def load_config():

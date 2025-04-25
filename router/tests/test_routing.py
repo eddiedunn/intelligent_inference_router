@@ -1,19 +1,9 @@
-import os
-import secrets
-
-# Dynamically generate a random API key for each test session
-TEST_IIR_API_KEY = "test-" + secrets.token_urlsafe(16)
-os.environ["IIR_API_KEY"] = TEST_IIR_API_KEY
-
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
 from router.main import app
 import asyncio
 
-@pytest.fixture(scope="session")
-def test_api_key():
-    return TEST_IIR_API_KEY
+# Remove per-file key generation, use test_api_key fixture from conftest.py
 
 @pytest.fixture(autouse=True)
 def patch_provider_clients(monkeypatch):
