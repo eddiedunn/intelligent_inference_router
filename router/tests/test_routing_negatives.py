@@ -17,6 +17,8 @@ async def test_chat_completions_missing_messages(test_api_key):
     payload = {"model": "gpt-3.5-turbo"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
+    print("[DEBUG] missing_messages resp.status_code=", resp.status_code)
+    print("[DEBUG] missing_messages resp.text=", resp.text)
     assert resp.status_code == 400
     assert "Missing required fields" in resp.text
 
@@ -34,6 +36,8 @@ async def test_chat_completions_token_limit(test_api_key):
     }
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
+    print("[DEBUG] token_limit resp.status_code=", resp.status_code)
+    print("[DEBUG] token_limit resp.text=", resp.text)
     assert resp.status_code == 413
     assert "token limit" in resp.text
 
