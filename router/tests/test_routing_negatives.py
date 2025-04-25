@@ -8,54 +8,55 @@ import os
 # These tests override the rate limiter to a no-op to avoid Redis/fastapi-limiter infra errors.
 
 @pytest.mark.asyncio
-async def test_chat_completions_missing_model(test_api_key):
+async def test_chat_completions_missing_model(test_api_key, monkeypatch):
     app = create_app()
     async def no_op_rate_limiter(request):
         pass
-    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+    monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
     payload = {"messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Invalid request payload."
+    assert "Missing required fields" in resp.text
 
 @pytest.mark.asyncio
-async def test_chat_completions_missing_messages(test_api_key):
+async def test_chat_completions_missing_messages(test_api_key, monkeypatch):
     app = create_app()
     async def no_op_rate_limiter(request):
         pass
-    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+    monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
     payload = {"model": "gpt-3.5-turbo"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Invalid request payload."
+    assert "Missing required fields" in resp.text
 
 @pytest.mark.asyncio
-async def test_chat_completions_invalid_payload(test_api_key):
+async def test_chat_completions_invalid_payload(test_api_key, monkeypatch):
     app = create_app()
     async def no_op_rate_limiter(request):
         pass
-    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+    monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
+    # Send invalid JSON (simulate by sending text instead of JSON)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/v1/chat/completions", data="not a json", headers={"Authorization": f"Bearer {test_api_key}"})
+        resp = await ac.post("/v1/chat/completions", content="notjson", headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Invalid request payload."
+    assert "Invalid JSON payload" in resp.text
 
 @pytest.mark.asyncio
-async def test_chat_completions_token_limit(test_api_key):
+async def test_chat_completions_token_limit(test_api_key, monkeypatch):
     app = create_app()
     async def no_op_rate_limiter(request):
         pass
-    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+    monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
     payload = {
         "model": "gpt-3.5-turbo",
         "messages": [{"role": "user", "content": "x" * 3000}]
     }
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
-    assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Invalid request payload."
+    assert resp.status_code == 413
+    assert "Request exceeds max token limit" in resp.text
 
 @pytest.mark.asyncio
 async def test_chat_completions_rate_limit_exceeded(test_api_key, monkeypatch):
@@ -85,15 +86,15 @@ async def test_chat_completions_upstream_provider_error(test_api_key, monkeypatc
     assert "Remote provider error" in resp.text
 
 @pytest.mark.asyncio
-async def test_chat_completions_unknown_model(test_api_key):
+async def test_chat_completions_unknown_model(test_api_key, monkeypatch):
     app = create_app()
     async def no_op_rate_limiter(request):
         pass
-    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+    monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
     payload = {"model": "foo-unknown", "messages": [{"role": "user", "content": "hi"}]}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
     assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Invalid request payload."
+    assert "Missing required fields" in resp.text
 
 # If /v1/completions endpoint exists, add similar negative tests here
