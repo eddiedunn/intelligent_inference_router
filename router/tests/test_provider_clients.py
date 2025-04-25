@@ -26,7 +26,7 @@ async def test_chat_completions_request(monkeypatch, client_cls, endpoint, model
     monkeypatch.setenv("OPENLLAMA_API_BASE", "https://api.openllama.com/v1")
 
     mock_response = AsyncMock()
-    mock_response.json.return_value = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
+    mock_response.json = AsyncMock(return_value={"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]})
     mock_response.status_code = 200
 
     with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)) as mock_post:
