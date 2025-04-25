@@ -38,6 +38,46 @@ def override_rate_limiter_dependency():
     else:
         main.app.dependency_overrides.pop(RateLimiter, None)
 
+@pytest.fixture(autouse=True)
+def mock_model_providers(monkeypatch):
+    # Mock local vLLM provider
+    from router import main
+    async def dummy_generate_local(*args, **kwargs):
+        class DummyResponse:
+            status_code = 200
+            content = {"result": "dummy local"}
+        return DummyResponse()
+    monkeypatch.setattr(main, "generate_local", dummy_generate_local)
+
+    # Mock remote provider clients
+    import router.provider_clients.openai as openai_mod
+    import router.provider_clients.anthropic as anthropic_mod
+    import router.provider_clients.grok as grok_mod
+    import router.provider_clients.openrouter as openrouter_mod
+    import router.provider_clients.openllama as openllama_mod
+
+    async def dummy_chat_completions(self, payload, model, **kwargs):
+        class DummyResponse:
+            status_code = 200
+            content = {"result": f"dummy remote {model}"}
+        return DummyResponse()
+    async def dummy_completions(self, payload, model, **kwargs):
+        class DummyResponse:
+            status_code = 200
+            content = {"result": f"dummy completions {model}"}
+        return DummyResponse()
+    # Patch all remote providers
+    monkeypatch.setattr(openai_mod.OpenAIClient, "chat_completions", dummy_chat_completions)
+    monkeypatch.setattr(openai_mod.OpenAIClient, "completions", dummy_completions)
+    monkeypatch.setattr(anthropic_mod.AnthropicClient, "chat_completions", dummy_chat_completions)
+    monkeypatch.setattr(anthropic_mod.AnthropicClient, "completions", dummy_completions)
+    monkeypatch.setattr(grok_mod.GrokClient, "chat_completions", dummy_chat_completions)
+    monkeypatch.setattr(grok_mod.GrokClient, "completions", dummy_completions)
+    monkeypatch.setattr(openrouter_mod.OpenRouterClient, "chat_completions", dummy_chat_completions)
+    monkeypatch.setattr(openrouter_mod.OpenRouterClient, "completions", dummy_completions)
+    monkeypatch.setattr(openllama_mod.OpenLLaMAClient, "chat_completions", dummy_chat_completions)
+    monkeypatch.setattr(openllama_mod.OpenLLaMAClient, "completions", dummy_completions)
+
 @pytest.fixture
 def client():
     from router.main import app
