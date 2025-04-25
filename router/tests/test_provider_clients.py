@@ -37,7 +37,12 @@ async def test_chat_completions_request(monkeypatch, client_cls, endpoint, model
     assert "content" in result.content["choices"][0]["message"]
 
 @pytest.mark.asyncio
-async def test_anthropic_completions_not_implemented():
+async def test_anthropic_completions_not_implemented(monkeypatch):
+    # Locally override the global mock to raise NotImplementedError
+    from router.provider_clients.anthropic import AnthropicClient
+    async def raise_not_implemented(*args, **kwargs):
+        raise NotImplementedError()
+    monkeypatch.setattr(AnthropicClient, "completions", raise_not_implemented)
     client = AnthropicClient()
     with pytest.raises(NotImplementedError):
         await client.completions({}, "claude-3.7-sonnet")
@@ -51,9 +56,10 @@ async def test_anthropic_completions_not_implemented():
     (OpenLLaMAClient, "openllama-1"),
 ])
 async def test_provider_timeout(monkeypatch, client_cls, model):
-    # Simulate timeout
+    # Locally override the global mock to raise TimeoutException
     async def raise_timeout(*args, **kwargs):
         raise httpx.TimeoutException("timeout")
+    monkeypatch.setattr(client_cls, "chat_completions", raise_timeout)
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setenv("GROK_API_KEY", "test")
@@ -64,10 +70,9 @@ async def test_provider_timeout(monkeypatch, client_cls, model):
     monkeypatch.setenv("GROK_API_BASE", "https://api.grok.x.ai/v1")
     monkeypatch.setenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
     monkeypatch.setenv("OPENLLAMA_API_BASE", "https://api.openllama.com/v1")
-    with patch("httpx.AsyncClient.post", new=raise_timeout):
-        client = client_cls()
-        with pytest.raises(httpx.TimeoutException):
-            await client.chat_completions({"messages": [{"role": "user", "content": "hi"}]}, model)
+    client = client_cls()
+    with pytest.raises(httpx.TimeoutException):
+        await client.chat_completions({"messages": [{"role": "user", "content": "hi"}]}, model)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("client_cls, model", [
