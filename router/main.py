@@ -2,9 +2,12 @@ import os
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
 print("[DEBUG] checkpoint 1: after os import")
-MOCK_PROVIDERS = os.getenv("MOCK_PROVIDERS") == "1"
-print(f"[DEBUG] checkpoint 3: after MOCK_PROVIDERS eval, MOCK_PROVIDERS={MOCK_PROVIDERS}")
-if MOCK_PROVIDERS:
+# --- Runtime check for MOCK_PROVIDERS ---
+def is_mock_providers():
+    return os.getenv("MOCK_PROVIDERS") == "1"
+
+print(f"[DEBUG] checkpoint 3: after MOCK_PROVIDERS eval, MOCK_PROVIDERS={is_mock_providers()}")
+if is_mock_providers():
     from router.provider_clients import openai, anthropic, grok, openrouter, openllama
     print("[DEBUG] checkpoint 4: after provider_clients imports")
     import logging
@@ -197,7 +200,7 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
         return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
     # --- MOCK PROVIDERS: always return mock response for any provider ---
-    if MOCK_PROVIDERS:
+    if is_mock_providers():
         response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
         return JSONResponse(status_code=200, content=response)
 
