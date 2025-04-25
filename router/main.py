@@ -1,4 +1,5 @@
 import os
+print("[DEBUG] Startup: IIR_API_KEY =", os.environ.get("IIR_API_KEY"))
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
 from fastapi.exceptions import RequestValidationError
