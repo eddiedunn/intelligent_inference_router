@@ -43,14 +43,11 @@ def mock_model_providers(monkeypatch):
     # Mock local vLLM provider
     from router import main
     async def dummy_generate_local(*args, **kwargs):
-        class DummyResponse:
-            status_code = 200
-            content = {
-                "id": "test-local",
-                "object": "chat.completion",
-                "choices": [{"message": {"content": "Hello from local!"}}]
-            }
-        return DummyResponse()
+        return {
+            "id": "test-local",
+            "object": "chat.completion",
+            "choices": [{"message": {"content": "Hello from local!"}}]
+        }
     monkeypatch.setattr(main, "generate_local", dummy_generate_local)
 
     # Mock remote provider clients
@@ -61,23 +58,17 @@ def mock_model_providers(monkeypatch):
     import router.provider_clients.openllama as openllama_mod
 
     async def dummy_chat_completions(self, payload, model, **kwargs):
-        class DummyResponse:
-            status_code = 200
-            content = {
-                "id": "test-remote",
-                "object": "chat.completion",
-                "choices": [{"message": {"content": f"Hello from {model}!"}}]
-            }
-        return DummyResponse()
+        return {
+            "id": "test-remote",
+            "object": "chat.completion",
+            "choices": [{"message": {"content": f"Hello!"}}]
+        }
     async def dummy_completions(self, payload, model, **kwargs):
-        class DummyResponse:
-            status_code = 200
-            content = {
-                "id": "test-remote",
-                "object": "text_completion",
-                "choices": [{"text": f"Completion for {model}."}]
-            }
-        return DummyResponse()
+        return {
+            "id": "test-remote",
+            "object": "text_completion",
+            "choices": [{"text": f"Completion for {model}."}]
+        }
     # Patch all remote providers
     monkeypatch.setattr(openai_mod.OpenAIClient, "chat_completions", dummy_chat_completions)
     monkeypatch.setattr(openai_mod.OpenAIClient, "completions", dummy_completions)
