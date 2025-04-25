@@ -270,6 +270,7 @@ def create_app():
         client_obj = provider_clients.PROVIDER_CLIENTS.get(provider)
         print(f"[DEBUG] /v1/chat/completions: provider client object={client_obj}, type={type(client_obj)}, id(class)={id(type(client_obj))}")
         print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
+        # Only catch exceptions you intend to handle
         try:
             print(f"[DEBUG] About to call chat_completions on {client_obj}")
             result = await client_obj.chat_completions()
