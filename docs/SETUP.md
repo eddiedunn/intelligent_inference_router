@@ -105,6 +105,15 @@ If you do not add this token, the vLLM container will fail to start and you will
 
 ---
 
+## Redis Configuration for Local Development & Testing
+
+- **Set `REDIS_URL=redis://localhost:6379/0` in your `.env` file** for all local development and testing.
+- The application uses a lazy environment variable lookup for `REDIS_URL`, ensuring the correct Redis host is always used—even if the environment changes after import.
+- This pattern prevents test failures due to import order or environment variable timing issues.
+- For Docker Compose or production, set `REDIS_URL` as appropriate for your environment.
+
+---
+
 ## Running Multiple Stacks (Dev/Test)
 
 To run a second stack on the same host (e.g., for parallel dev/testing):

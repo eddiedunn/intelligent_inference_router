@@ -22,6 +22,12 @@ See `docs/SETUP.md` for prerequisites and setup instructions.
 - `docs/MONITORING.md`: Metrics & dashboards
 - `docs/TROUBLESHOOTING.md`: Common issues
 
+## Redis Environment Pattern (Test & Dev Reliability)
+
+- The project uses a lazy environment variable lookup for `REDIS_URL` to ensure robust Redis connectivity in all environments.
+- Always set `REDIS_URL=redis://localhost:6379/0` in your `.env` for local development and testing.
+- See `docs/SETUP.md` for details.
+
 ## Project Decoupling: ml_ops
 
 As of 2025-04-24, this project no longer depends on the `ml_ops` repository. All code, tests, and infrastructure for the Intelligent Inference Router are now self-contained. Any prior references to `ml_ops` as a submodule, symlink, or dependency have been removed for clarity and maintainability.

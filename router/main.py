@@ -112,10 +112,6 @@ async def chat_completions(request: Request, body: dict = Body(...)):
         logger.warning("Missing required fields: model or messages", extra={"event": "bad_request"})
         router_requests_errors_total.inc()
         return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
-    if model != "musicgen":
-        logger.info(f"Remote model requested: {model}", extra={"event": "remote_model"})
-        router_requests_errors_total.inc()
-        return JSONResponse(status_code=501, content={"detail": "Remote/external models not implemented in Phase 1a"})
     prompt = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
     # Token limit enforcement (simple char-based estimate)
     if len(prompt) > 2048:
@@ -141,21 +137,48 @@ async def chat_completions(request: Request, body: dict = Body(...)):
         logger.error("Classifier error", extra={"event": "classifier_error", "error": str(e)})
         router_requests_errors_total.inc()
         return JSONResponse(status_code=503, content={"detail": "Classifier error: " + str(e)})
-    if classification != "local":
-        logger.info("Remote path returned (not implemented)", extra={"event": "remote_path"})
+    if classification == "local":
+        # Local vLLM call
+        try:
+            response = await generate_local(body)
+            logger.info("Local vLLM call succeeded", extra={"event": "vllm_success"})
+        except Exception as e:
+            logger.error("Local vLLM backend error", extra={"event": "vllm_error", "error": str(e)})
+            router_requests_errors_total.inc()
+            return JSONResponse(status_code=502, content={"detail": "Local vLLM backend error: " + str(e)})
+        # Cache response
+        await cache.set(cache_key, str(response), ex=3600)
+        return JSONResponse(status_code=200, content=response)
+    # Remote: route to provider
+    from router.provider_clients import PROVIDER_CLIENTS
+    # For now, pick provider by model prefix (could be made more sophisticated)
+    provider_map = {
+        "gpt": "openai",
+        "claude": "anthropic",
+        "grok": "grok",
+        "openrouter": "openrouter",
+        "openllama": "openllama",
+    }
+    provider = None
+    for prefix, name in provider_map.items():
+        if model.lower().startswith(prefix):
+            provider = name
+            break
+    if not provider:
+        logger.error("Unknown remote provider for model", extra={"event": "provider_error", "model": model})
         router_requests_errors_total.inc()
-        return JSONResponse(status_code=501, content={"detail": "Remote path not implemented in Phase 1a"})
-    # Local vLLM call
+        return JSONResponse(status_code=400, content={"detail": f"Unknown remote provider for model: {model}"})
+    client = PROVIDER_CLIENTS[provider]
     try:
-        response = await generate_local(body)
-        logger.info("Local vLLM call succeeded", extra={"event": "vllm_success"})
+        result = await client.chat_completions(body, model)
+        logger.info("Remote provider call succeeded", extra={"event": "provider_success", "provider": provider})
     except Exception as e:
-        logger.error("Local vLLM backend error", extra={"event": "vllm_error", "error": str(e)})
+        logger.error("Remote provider error", extra={"event": "provider_error", "error": str(e), "provider": provider})
         router_requests_errors_total.inc()
-        return JSONResponse(status_code=502, content={"detail": "Local vLLM backend error: " + str(e)})
-    # Cache response
-    await cache.set(cache_key, str(response), ex=3600)
-    return JSONResponse(status_code=200, content=response)
+        return JSONResponse(status_code=502, content={"detail": f"Remote provider error: {e}"})
+    # Optionally cache remote responses
+    await cache.set(cache_key, str(result.content), ex=3600)
+    return JSONResponse(status_code=result.status_code, content=result.content)
 
 @app.on_event("startup")
 async def startup_event():
