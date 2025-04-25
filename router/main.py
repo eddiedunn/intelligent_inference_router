@@ -200,20 +200,10 @@ async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate
         return JSONResponse(status_code=400, content={"error": {"message": f"Unknown remote provider for model '{model}'", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
 
     # --- MOCK PROVIDERS: always return mock response for any provider ---
+    print(f"[DEBUG] /v1/chat/completions: is_mock_providers()={is_mock_providers()}, MOCK_PROVIDERS env={os.getenv('MOCK_PROVIDERS')}")
     if is_mock_providers():
         response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": f"[MOCK-{provider}] Hello!"}}]}
         return JSONResponse(status_code=200, content=response)
-
-    if stream:
-        async def stream_response() -> AsyncGenerator[bytes, None]:
-            try:
-                for token in ["Hello", " ", "world", "!"]:
-                    yield f"data: {{\"choices\":[{{\"delta\":{{\"content\":\"{token}\"}}}}]}}\n\n".encode()
-                    await asyncio.sleep(0.1)
-                yield b"data: [DONE]\n\n"
-            except Exception as e:
-                yield f"data: {{\"error\": {{\"message\": \"{str(e)}\", \"type\": \"server_error\"}}}}\n\n".encode()
-        return StreamingResponse(stream_response(), media_type="text/event-stream")
     try:
         # Real provider call (should not be reached in MOCK_PROVIDERS=1)
         response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
