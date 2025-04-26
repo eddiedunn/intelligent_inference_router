@@ -8,9 +8,14 @@ set -e
 # 4. Run remote load test
 # 5. Fetch startup logs for IIR_API_KEY
 
-# Step 1: Rebuild Docker images
+# Step 1: Rebuild Docker images (try Makefile, fallback to docker-compose)
 echo "[INFO] Rebuilding Docker images..."
-make build
+if make build 2>/dev/null; then
+  echo "[INFO] make build succeeded."
+else
+  echo "[WARN] make build failed, falling back to docker-compose build."
+  docker-compose build
+fi
 
 # Step 2: Restart Docker containers
 echo "[INFO] Restarting Docker containers..."
