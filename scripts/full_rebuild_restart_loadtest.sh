@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Always run from project root
+cd "$(dirname "$0")/.."
+
 # Full rebuild, restart, and load test script for IIR
 # 1. Rebuild Docker images
 # 2. Restart containers
