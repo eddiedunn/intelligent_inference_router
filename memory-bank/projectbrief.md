@@ -5,8 +5,8 @@ Establish a robust, modular gateway for LLM inference requests, capable of intel
 
 ## Scope (Phase 1a)
 - OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`, `/health`)
-- Prompt classification (local vs remote)
-- Routing logic (fully implemented for local, stub for remote)
+- Prompt classification (local)
+- Routing logic (fully implemented for local)
 - Local vLLM backend integration (Llama-3-8B-Instruct)
 - Redis-based caching (local path)
 - Monitoring: Prometheus + Grafana
@@ -14,8 +14,9 @@ Establish a robust, modular gateway for LLM inference requests, capable of intel
 - Docker Compose deployment
 
 ## Out of Scope (Phase 1a)
-- External provider integration (stub only)
+- External provider integration 
 - Advanced routing, dynamic model loading, Kubernetes, advanced security, streaming, etc.
+- Remote routing
 
 ## Success Metrics
 - Local path latency (TTFT p95 ≤ 200ms)

@@ -7,8 +7,8 @@
 - Pydantic for configuration management
 
 ## Key Technical Decisions
-- Prompt classification determines routing path (local vs remote)
-- Local path fully implemented, remote path stubbed for MVP
+- Prompt classification determines routing path (local only)
+- Local path fully implemented; remote path is not supported in this deployment
 - All configuration externalized via YAML + env vars
 - API key auth and rate limiting at ingress
 - Structured JSON logging (metadata by default)

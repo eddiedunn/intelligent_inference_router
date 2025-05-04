@@ -1,10 +1,10 @@
 # Intelligent Inference Router (IIR) - MVP Phase 1a
 
-A containerized, OpenAI-compatible LLM inference gateway that intelligently routes requests between a local GPU model (vLLM) and (future) external APIs. Includes prompt classification, Redis caching, monitoring, and robust configuration.
+A containerized, OpenAI-compatible LLM inference gateway that intelligently routes requests to a local GPU model (vLLM). Includes prompt classification, Redis caching, monitoring, and robust configuration.
 
 ## Features
 - OpenAI-compatible endpoints: `/v1/chat/completions`, `/v1/models`, `/health`
-- Prompt classification (local vs remote)
+- Prompt classification (local only)
 - Local vLLM backend integration (Llama-3-8B-Instruct)
 - Redis-based response caching
 - Prometheus/Grafana monitoring

@@ -29,41 +29,6 @@
    # Optionally, add --prefix myproject or --client-path path/to/client.env
    ```
 
-4. **[Optional] Enable remote log forwarding for debugging**
-   - Edit `.env` and set:
-     ```
-     REMOTE_LOG_SINK=host:port  # e.g., 1.2.3.4:9999
-     ```
-   - **All logs will be sent to your REMOTE_LOG_SINK** ("tee" style):
-     - Application logs (from all Python logging calls) are forwarded to the remote sink as well as stdout.
-     - Docker Compose logs (from all containers) are also forwarded if you use `make logs` or `make deploy-test`.
-   - **Recommended:** Use [logflow](https://github.com/eddiedunn/logflow) as your log destination.
-     1. Clone and run logflow on your destination server:
-        ```sh
-        git clone https://github.com/eddiedunn/logflow.git
-        cd logflow
-        pip install -r requirements.txt
-        python logflow.py --listen 0.0.0.0:9999
-        # Or use Docker:
-        docker run --rm -p 9999:9999/udp ghcr.io/eddiedunn/logflow:latest --listen 0.0.0.0:9999
-        ```
-     2. Set your `REMOTE_LOG_SINK` to the IP and port where logflow is running (e.g., `REMOTE_LOG_SINK=your.server.ip:9999`).
-   - (Alternative: For quick debugging, you can use the simple Python UDP listener below.)
-     ```python
-     import socket
-     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-     sock.bind(("0.0.0.0", 9999))
-     while True:
-         data, addr = sock.recvfrom(4096)
-         print(data.decode(), end="")
-     ```
-   - Then run:
-     ```sh
-     make logs
-     # or as part of
-     make deploy-test
-     ```
-
 ## Hugging Face Token for Gated Models
 
 Some models (such as Meta Llama 3) are gated on Hugging Face and require authentication to download.
