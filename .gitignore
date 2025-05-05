@@ -33,6 +33,7 @@ coverage.xml
 # Environments
 .env
 .env.*
+!*.env.example
 .env.bak
 client.env
 # client.env is NOT ignored so example can be committed
