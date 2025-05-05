@@ -3,6 +3,7 @@ from transformers import pipeline
 from router.settings import get_settings
 
 settings = get_settings()
+# Use the model naming convention <provider>/<model> for classifier_model_id
 classifier = pipeline("zero-shot-classification", model=settings.classifier_model_id, device=settings.classifier_device)
 
 async def classify_prompt(prompt: str) -> str:

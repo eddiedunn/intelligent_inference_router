@@ -70,6 +70,28 @@ If you do not add this token, the vLLM container will fail to start and you will
 
 ---
 
+## Model Registry & Hardware-Aware Discovery
+
+- The registry supports local and hosted models from multiple providers (OpenAI, Hugging Face, OpenRouter, Google Gemini/PaLM, etc.).
+- To refresh the registry and run hardware-aware model discovery, call the API endpoint:
+
+  ```bash
+  curl -X POST http://localhost:8000/v1/registry/refresh
+  ```
+  or use the CLI:
+  ```bash
+  python router/refresh_models.py
+  ```
+- The registry and recommendations are persisted in `~/.agent_coder/`.
+- To check the last refresh time and hardware info, call:
+  ```bash
+  curl http://localhost:8000/v1/registry/status
+  ```
+- Set `OPENAI_API_KEY` in your environment for model recommendations.
+- Requirements: `sqlite3`, `requests`, `torch`, `openai`
+
+---
+
 ## Redis Configuration for Local Development & Testing
 
 - **Set `REDIS_URL=redis://localhost:6379/0` in your `.env` file** for all local development and testing.

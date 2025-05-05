@@ -60,15 +60,17 @@ def main():
     parser = argparse.ArgumentParser(description="Generate a secure API key.")
     parser.add_argument("--length", type=int, default=DEFAULT_KEY_LENGTH, help="Key length (default: 40)")
     parser.add_argument("--prefix", type=str, default=None, help="Optional prefix/label for the key")
-    parser.add_argument("--set-server-env", action="store_true", help="Set key in .env for server")
+    parser.add_argument("--set-server-env", action="store_true", help="Set key in .env for server (default: true)")
     parser.add_argument("--set-client-env", action="store_true", help="Set key in client.env for client use")
     parser.add_argument("--client-path", type=str, default=None, help="Custom path for client env file")
+    parser.add_argument("--no-set-server-env", action="store_true", help="Do NOT set key in .env for server (overrides default)")
     args = parser.parse_args()
 
     api_key = generate_key(length=args.length, prefix=args.prefix)
     print(f"Generated API key: {api_key}")
 
-    if args.set_server_env:
+    # By default, set .env unless --no-set-server-env is passed
+    if not args.no_set_server_env:
         set_env_key(SERVER_ENV_PATH, api_key)
     if args.set_client_env:
         client_path = Path(args.client_path) if args.client_path else CLIENT_ENV_PATH

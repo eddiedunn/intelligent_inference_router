@@ -2,52 +2,6 @@ import os
 print("[DEBUG] Startup: IIR_API_KEY =", os.environ.get("IIR_API_KEY"))
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
-from fastapi.exceptions import RequestValidationError
-import logging
-logger = logging.getLogger("uvicorn.error")
-
-# --- Runtime check for MOCK_PROVIDERS ---
-def is_mock_providers():
-    return os.getenv("MOCK_PROVIDERS") == "1"
-
-# --- Patch provider clients for MOCK_PROVIDERS ---
-def patch_for_mock_providers():
-    from router.provider_clients import openai, anthropic, grok, openrouter, openllama
-    print("[DEBUG] patch_for_mock_providers: after provider_clients imports")
-    print("[DEBUG] patch_for_mock_providers: after logging import")
-    dummy_resp = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-    async def dummy_chat_completions(self, *args, **kwargs):
-        logger.info("[DEBUG] dummy_chat_completions called")
-        return dummy_resp
-    for cls in [openai.OpenAIClient, anthropic.AnthropicClient, grok.GrokClient, openrouter.OpenRouterClient, openllama.OpenLLaMAClient]:
-        cls.chat_completions = dummy_chat_completions
-    import router.providers.local_vllm
-    print("[DEBUG] patch_for_mock_providers: after local_vllm import")
-    async def dummy_generate_local(body):
-        return {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-    router.providers.local_vllm.generate_local = dummy_generate_local
-    # Rebuild PROVIDER_CLIENTS registry with patched classes
-    from router import provider_clients
-    print("[DEBUG] patch_for_mock_providers: after provider_clients registry import")
-    provider_clients.PROVIDER_CLIENTS = {
-        "openai": openai.OpenAIClient(),
-        "anthropic": anthropic.AnthropicClient(),
-        "grok": grok.GrokClient(),
-        "openrouter": openrouter.OpenRouterClient(),
-        "openllama": openllama.OpenLLaMAClient(),
-    }
-    logger.info(f"[DEBUG] PATCH SITE: id(PROVIDER_CLIENTS)={id(provider_clients.PROVIDER_CLIENTS)}")
-    for k, v in provider_clients.PROVIDER_CLIENTS.items():
-        logger.info(f"[DEBUG] PATCH SITE: {k} class={v.__class__} id(class)={id(v.__class__)}")
-
-if is_mock_providers():
-    patch_for_mock_providers()
-
-print("[DEBUG] checkpoint 1: after os import")
-print(f"[DEBUG] checkpoint 3: after MOCK_PROVIDERS eval, MOCK_PROVIDERS={is_mock_providers()}")
-
-# FastAPI entry point for IIR MVP Phase 1a
-from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_limiter.depends import RateLimiter
@@ -78,6 +32,8 @@ import httpx
 import json
 import types
 import uuid
+from router.model_registry import list_models, rebuild_db
+from router.registry_status import load_registry_status, save_registry_status
 
 # Attach UDP log handler if REMOTE_LOG_SINK is set
 def configure_udp_logging():
@@ -246,52 +202,22 @@ def create_app():
             return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
 
         model = body.get("model")
-        messages = body.get("messages")
-        stream = body.get("stream") or request.query_params.get("stream") == "true"
-        if not model or not messages:
-            return JSONResponse(status_code=400, content={"error": {"message": "Missing required fields: model or messages", "type": "invalid_request_error", "param": None, "code": None}})
-        prompt = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
-        if len(prompt) > 2048:
-            return JSONResponse(status_code=413, content={"error": {"message": "Request exceeds max token limit", "type": "invalid_request_error", "param": None, "code": "token_limit"}})
-        provider_map = {
-            "gpt": "openai",
-            "claude": "anthropic",
-            "grok": "grok",
-            "openrouter": "openrouter",
-            "openllama": "openllama",
-        }
-        provider = None
-        model_l = model.lower()
-        for prefix, name in provider_map.items():
-            if model_l.startswith(prefix) or model_l.split("-", 1)[0] == prefix:
-                provider = name
-                break
-        print(f"[DEBUG] /v1/chat/completions: incoming model={model}")
-        from router import provider_clients
-        print(f"[DEBUG] /v1/chat/completions: MODEL_PROVIDER_MAP={getattr(provider_clients, 'MODEL_PROVIDER_MAP', 'N/A')}")
-        print(f"[DEBUG] /v1/chat/completions: computed provider={provider}")
-        if not provider:
-            return JSONResponse(status_code=400, content={"error": {"message": "Unknown remote provider for model", "type": "invalid_request_error", "param": "model", "code": "unknown_model"}})
+        if not model or "/" not in model:
+            return JSONResponse(status_code=400, content={"error": {"message": "Model name must be in <provider>/<model> format.", "type": "invalid_request_error", "param": "model", "code": "invalid_model_name"}})
+        provider, model_name = model.split("/", 1)
 
-        if is_mock_providers():
-            print(f"[DEBUG] MOCK_PROVIDERS active: returning mock response for provider={provider}")
-            response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-            return JSONResponse(status_code=200, content=response)
+        from router.provider_clients import PROVIDER_CLIENTS
+        client_obj = PROVIDER_CLIENTS.get(provider)
+        if not client_obj:
+            return JSONResponse(status_code=400, content={"error": {"message": f"Unknown or unconfigured provider: {provider}", "type": "invalid_request_error", "param": "model", "code": "unknown_provider"}})
 
-        print(f"[DEBUG] /v1/chat/completions: provider={provider}")
-        from router import provider_clients
-        client_obj = provider_clients.PROVIDER_CLIENTS.get(provider)
-        print(f"[DEBUG] /v1/chat/completions: provider client object={client_obj}, type={type(client_obj)}, id(class)={id(type(client_obj))}")
-        print("[DEBUG] About to enter real provider call block (should not happen in MOCK_PROVIDERS=1)")
+        # Pass model_name to the client
         try:
-            print(f"[DEBUG] About to call chat_completions on {client_obj}")
-            result = await client_obj.chat_completions()
-            print(f"[DEBUG] chat_completions result: {result}")
-            response = {"id": "test", "object": "chat.completion", "choices": [{"message": {"content": "Hello!"}}]}
-            return JSONResponse(status_code=200, content=response)
+            result = await client_obj.chat_completions(body, model_name)
+            return JSONResponse(status_code=result.status_code, content=result.content)
         except Exception as e:
-            print(f"[DEBUG] Exception in real provider call: {e}")
-            return JSONResponse(status_code=502, content={"error": {"message": f"Remote provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
+            print(f"[DEBUG] Exception in provider call: {e}")
+            return JSONResponse(status_code=502, content={"error": {"message": f"Provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
 
     # Simple in-memory job store (replace with persistent store in production)
     ASYNC_JOB_STORE: Dict[str, Dict] = {}
@@ -323,6 +249,37 @@ def create_app():
         if job["status"] != "complete":
             return {"job_id": job_id, "status": job["status"]}
         return job["result"]
+
+    @app.get("/v1/models")
+    async def get_models():
+        # Return available models from registry in OpenAI-compatible format
+        models = list_models()["data"]
+        # OpenAI format: [{"id": ..., "object": "model", "owned_by": <provider>, ...}]
+        data = [
+            {
+                "id": f"{m['provider']}/{m['id']}",
+                "object": "model",
+                "owned_by": m["provider"],
+                "permission": [],
+                # Optionally include extra metadata fields here
+            }
+            for m in models
+        ]
+        return {"object": "list", "data": data}
+
+    @app.get("/v1/registry/status")
+    async def registry_status():
+        status = load_registry_status()
+        if not status:
+            return {"status": "not_initialized", "message": "Registry status not found. Please run a refresh."}
+        return status
+
+    @app.post("/v1/registry/refresh")
+    async def refresh_registry():
+        # On-demand registry rebuild (hardware/model discovery)
+        rebuild_db()
+        status = save_registry_status()
+        return {"status": "ok", "message": "Model registry refreshed.", "registry_status": status}
 
     @app.on_event("startup")
     async def startup_event():
