@@ -76,3 +76,5 @@ npm/
 
 # Ignore local settings
 *.local
+
+api_keys.sqlite3
