@@ -1,0 +1,63 @@
+# Gaia Infra Platform: GitLab CI Pipeline for Intelligent Inference Router
+
+stages:
+  - lint
+  - test
+  - build
+  - push
+  - deploy
+
+variables:
+  IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+
+lint:
+  stage: lint
+  image: python:3.9
+  script:
+    - pip install flake8 black
+    - flake8 .
+    - black --check .
+
+unit_test:
+  stage: test
+  image: python:3.9
+  script:
+    - pip install -r requirements.txt
+    - pytest
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $IMAGE_NAME .
+
+push:
+  stage: push
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+    - docker push $IMAGE_NAME
+  only:
+    - main
+    - dev
+    - test
+
+deploy_dev:
+  stage: deploy
+  script:
+    - echo "Deploy to dev environment (implement as needed)"
+  only:
+    - dev
+  when: manual
+
+deploy_prod:
+  stage: deploy
+  script:
+    - echo "Deploy to production (implement as needed)"
+  only:
+    - main
+  when: manual

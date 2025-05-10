@@ -1,0 +1,63 @@
+{
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "type": "graph",
+      "title": "API Request Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(router_requests_total[1m])) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ],
+      "id": 1
+    },
+    {
+      "type": "graph",
+      "title": "API Error Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(router_requests_errors_total[1m])) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "graph",
+      "title": "API Request Latency (ms)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(router_request_latency_seconds_bucket[5m])) by (le, method)) * 1000",
+          "legendFormat": "p95 {{method}}"
+        }
+      ],
+      "id": 3
+    },
+    {
+      "type": "graph",
+      "title": "Cache Hit Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(cache_hits_total[1m])) / (sum(rate(cache_hits_total[1m])) + sum(rate(cache_misses_total[1m])))",
+          "legendFormat": "Cache Hit Rate"
+        }
+      ],
+      "id": 4
+    },
+    {
+      "type": "graph",
+      "title": "Cache Miss Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(cache_misses_total[1m]))",
+          "legendFormat": "Cache Misses"
+        }
+      ],
+      "id": 5
+    }
+  ],
+  "title": "Intelligent Inference Router Metrics",
+  "schemaVersion": 34,
+  "version": 1
+}

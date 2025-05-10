@@ -1,10 +1,15 @@
 import pytest
-from router.metrics import router_requests_total, router_requests_errors_total
+from prometheus_client import CollectorRegistry
+from router.metrics import get_metrics
 
 def test_metrics_increment():
-    start_total = router_requests_total._value.get()
-    start_errors = router_requests_errors_total._value.get()
-    router_requests_total.inc()
-    router_requests_errors_total.inc()
-    assert router_requests_total._value.get() == start_total + 1
-    assert router_requests_errors_total._value.get() == start_errors + 1
+    registry = CollectorRegistry()
+    metrics = get_metrics(registry=registry)
+    total = metrics["router_requests_total"]
+    errors = metrics["router_requests_errors_total"]
+    start_total = total._value.get()
+    start_errors = errors._value.get()
+    total.inc()
+    errors.inc()
+    assert total._value.get() == start_total + 1
+    assert errors._value.get() == start_errors + 1

@@ -3,12 +3,20 @@
 A containerized, OpenAI-compatible LLM inference gateway that intelligently routes requests to a local GPU model (vLLM). Includes prompt classification, Redis caching, monitoring, and robust configuration.
 
 ## Features
+
+### Recent Updates
+- **API Key Authentication**: All API key registration and authentication is now database-backed. Keys registered via `/api/v1/apikeys` are instantly usable for all protected endpoints. No more reliance on environment variables for key validation in production.
+- **Pydantic v2 Compatibility**: All models and settings use `model_dump()` instead of `.dict()` and leverage `json_schema_extra` for environment variable field mapping, ensuring compatibility with Pydantic v2 and beyond.
+- **Test Suite Parity**: The test suite robustly validates API key registration and authentication using the same DB-backed logic as production, ensuring tests reflect real-world usage.
+
 - OpenAI-compatible endpoints: `/v1/chat/completions`, `/v1/models`, `/health`
 - Prompt classification (local only)
 - Local vLLM backend integration (Llama-3-8B-Instruct)
 - Redis-based response caching
 - Prometheus/Grafana monitoring
-- API key authentication & rate limiting
+- API key authentication & rate limiting (DB-backed, production-grade)
+- Pydantic v2 compatible (uses model_dump and json_schema_extra for env fields)
+- Robust test suite: registration/auth tests mirror production behavior
 - Docker Compose deployment
 
 ## Model Naming Convention & Smart Routing
@@ -54,6 +62,71 @@ See `docs/SETUP.md` for prerequisites and setup instructions.
 - The project uses a lazy environment variable lookup for `REDIS_URL` to ensure robust Redis connectivity in all environments.
 - Always set `REDIS_URL=redis://localhost:6379/0` in your `.env` for local development and testing.
 - See `docs/SETUP.md` for details.
+
+# Gaia Infra Platform Onboarding
+
+This repository is structured for seamless onboarding to the Gaia Infra Platform. It follows the canonical app stack pattern described in the central Gaia ONBOARDING.md. This enables automated import, monitoring, and provisioning by the Gaia infra team or CI/CD.
+
+## Directory Structure for Gaia Onboarding
+
+```
+intelligent_inference_router/
+  docker-compose.yml
+  .env.example
+  monitoring/
+    prometheus.yml
+    grafana-dashboard.json (or router-cache-metrics.json)
+  db-provisioning/
+    # (empty or with DB manifests)
+  n8n/
+    # (empty or with n8n workflows)
+  README.md
+  .gitlab-ci.yml
+```
+
+- **monitoring/**: Prometheus scrape config and Grafana dashboards for this app.
+- **db-provisioning/**: Reserved for DB manifests (leave empty if not needed).
+- **n8n/**: Reserved for n8n workflow exports (leave empty if not needed).
+- **.gitlab-ci.yml**: GitLab CI/CD pipeline for lint, test, build, push, and deploy.
+
+## Gaia Import Script Usage
+
+To onboard this app into a Gaia environment, use the import script from the Gaia Infra Platform:
+
+```bash
+# Usage: ./scripts/import-app-stack.sh <path-to-app-repo> <environment>
+./scripts/import-app-stack.sh ../intelligent_inference_router dev
+```
+
+This will validate the structure and copy all required files into the correct environment stack.
+
+For more, see the Gaia Infra Platform [ONBOARDING.md](../gaia-infra-platform/ONBOARDING.md).
+
+---
+
+# GitLab CI/CD for Gaia
+
+This project uses **GitLab Community Edition (CE)** for all CI/CD automation:
+- All pipelines are defined in `.gitlab-ci.yml` at the repo root.
+- Pipelines run on GitLab Runners and push images to the GitLab Container Registry.
+- Key branches: `main` (production), `dev` (development), `test` (pre-prod/integration).
+- All build, lint, test, and deploy steps are visible in GitLab’s UI.
+
+## Pipeline Overview
+- **lint**: Checks code style (flake8, black)
+- **unit_test**: Runs all Python tests
+- **build**: Builds Docker image
+- **push**: Pushes image to GitLab Container Registry
+- **deploy_dev**: Manual deploy to dev environment
+- **deploy_prod**: Manual deploy to prod environment
+
+## Example Pipeline Trigger
+- Push to `main`, `dev`, or `test` will trigger the pipeline.
+- Manual deploy steps can be triggered from the GitLab UI.
+
+For more, see Gaia’s [ONBOARDING.md](../gaia-infra-platform/ONBOARDING.md) and the `.gitlab-ci.yml` in this repo.
+
+---
 
 ## Project Decoupling: ml_ops
 

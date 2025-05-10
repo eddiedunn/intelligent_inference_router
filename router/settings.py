@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     max_request_tokens: int = Field(...)
     REDIS_URL: str = Field(...)
     LOG_LEVEL: str = Field(default="INFO")
-    IIR_API_KEY: str = Field(..., env="IIR_API_KEY")
+    IIR_API_KEY: str = Field(..., json_schema_extra={"env": "IIR_API_KEY"})
     ROUTER_LOG_FULL_CONTENT: bool = Field(default=False)
     REMOTE_LOG_SINK: str = Field(default=None)
     HF_TOKEN: str = Field(default=None)

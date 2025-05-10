@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from router.main import app, create_app, rate_limiter_dep
+from router.main import create_app, rate_limiter_dep
 from httpx import ASGITransport, AsyncClient
 from unittest.mock import patch
 

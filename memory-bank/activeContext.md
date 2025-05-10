@@ -11,11 +11,26 @@
 - Confirmed minimal Redis ping tests pass; FastAPILimiter tests still skipped due to connection/init issues
 - Updated README and project documentation to reflect ml_ops decoupling
 
+## Onboarding & CI/CD (2025-05-05)
+- Project updated for Gaia Infra Platform onboarding (see ONBOARDING.md in gaia-infra-platform)
+- Directory structure matches canonical Gaia app stack pattern (monitoring/, db-provisioning/, n8n/, .env.example, docker-compose.yml, .gitlab-ci.yml)
+- Monitoring: prometheus.yml and Grafana dashboards present in monitoring/
+- .env.example uses only placeholders (no secrets committed)
+- .env is gitignored
+- CI/CD: Now uses GitLab CE exclusively; all automation in .gitlab-ci.yml
+- Pipelines: lint, test, build, push, deploy (manual for dev/prod)
+- Registry: Images pushed to GitLab Container Registry
+- README.md and memory-bank updated to reflect all onboarding and CI/CD requirements
+- Ready for import via Gaia onboarding scripts and integration into any Gaia-managed environment
+
 ## Next Steps
 - Run pytest with -s to capture all debug output from test suite
 - Analyze FastAPILimiter fixture output/logs to pinpoint cause of skipped tests
 - Finalize and document solution for robust Redis + FastAPILimiter test integration
 - Continue monitoring for any further Redis or rate limiting issues
+- Monitor for any onboarding script or pipeline errors in GitLab
+- Keep README and memory-bank in sync with any further onboarding or CI/CD changes
+- Periodically review Gaia ONBOARDING.md for updates to process or requirements
 
 ## Active Decisions
 - Continue strict documentation-first, memory-driven workflow

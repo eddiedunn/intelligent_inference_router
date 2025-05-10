@@ -48,17 +48,6 @@ class DummyRateLimiter:
             raise HTTPException(status_code=429, detail="Rate limit exceeded (dummy)")
         return True
 
-@pytest.fixture(autouse=True)
-def override_rate_limiter_dependency():
-    from router import main
-    # Save original dependency overrides
-    original_override = main.app.dependency_overrides.get(DummyRateLimiter)
-    main.app.dependency_overrides[DummyRateLimiter] = lambda: DummyRateLimiter()
-    yield
-    # Restore original dependency override
-    if original_override is not None:
-        main.app.dependency_overrides[DummyRateLimiter] = original_override
-    else:
         main.app.dependency_overrides.pop(DummyRateLimiter, None)
 
 # Patch all test clients to use DummyRateLimiter

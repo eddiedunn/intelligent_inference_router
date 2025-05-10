@@ -28,7 +28,8 @@ PROVIDERS = [
     {"name": "google", "location": "hosted"},
     {"name": "openai", "location": "hosted"},
     {"name": "anthropic", "location": "hosted"},
-    {"name": "grok", "location": "hosted"}
+    {"name": "grok", "location": "hosted"},
+    {"name": "veniceai", "location": "hosted"}
 ]
 
 PROMPT_TEMPLATE = """
@@ -50,6 +51,7 @@ Providers:
 - openai (hosted): Include GPT-4, GPT-3.5, or other available models for the category.
 - anthropic (hosted): Include Claude models for the category.
 - grok (hosted): Include Grok models for the category.
+- veniceai (hosted): Include VeniceAI models for the category, especially those supporting function calling. Use the VeniceAI API to fetch model metadata.
 
 If a provider does NOT offer any models for a category, return an empty models list for that provider and include a short description explaining why.
 
@@ -71,6 +73,47 @@ if cache_per_category:
             per_category_ttl = {}
 else:
     per_category_ttl = {}
+
+VENICEAI_API_KEY = os.getenv("VENICEAI_API_KEY", getattr(settings, "VENICEAI_API_KEY", None))
+VENICEAI_BASE_URL = os.getenv("VENICEAI_BASE_URL", getattr(settings, "VENICEAI_BASE_URL", "https://api.venice.ai/api/v1"))
+
+def fetch_veniceai_models():
+    """
+    Fetches VeniceAI models supporting function calling.
+    Returns a list of model dicts compatible with the registry schema.
+    """
+    import requests
+    if not VENICEAI_API_KEY:
+        print("VENICEAI_API_KEY not set.", file=sys.stderr)
+        return []
+    url = f"{VENICEAI_BASE_URL.rstrip('/')}/models"
+    headers = {"Authorization": f"Bearer {VENICEAI_API_KEY}"}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"Failed to fetch VeniceAI models: {response.status_code} {response.text}")
+            return []
+        data = response.json()
+        models = []
+        for model in data.get("data", []):
+            spec = model.get("model_spec", {})
+            if spec.get("supportsFunctionCalling"):
+                models.append({
+                    "id": model["id"],
+                    "provider": "veniceai",
+                    "location": "hosted",
+                    "category": spec.get("categories", []),
+                    "function_calling": spec.get("supportsFunctionCalling", False),
+                    "model_family": spec.get("model_family", "unknown"),
+                    "traits": spec.get("traits", []),
+                    "endpoint_url": model.get("endpoint", VENICEAI_BASE_URL),
+                    "file_path": None,
+                    "metadata": {"description": model.get("description", "")}
+                })
+        return models
+    except Exception as e:
+        print(f"Error fetching VeniceAI models: {e}", file=sys.stderr)
+        return []
 
 if cache_backend == "redis":
     import asyncio

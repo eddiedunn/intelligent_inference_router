@@ -2,7 +2,8 @@ import os
 import yaml
 import pytest
 from fastapi.testclient import TestClient
-from router.main import app
+from router.main import create_app
+
 import redis.asyncio as redis
 from fastapi_limiter import FastAPILimiter
 import threading
@@ -14,12 +15,14 @@ def load_config():
         return yaml.safe_load(f)
 
 def test_health():
+    app = create_app()
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json()["status"] in ("ok", "healthy")
 
 def test_version():
+    app = create_app()
     with TestClient(app) as client:
         response = client.get("/version")
         assert response.status_code == 200
@@ -31,6 +34,7 @@ def test_config_loading():
     assert isinstance(config["services"], dict)
 
 def test_infer_sync(monkeypatch, test_api_key):
+    app = create_app()
     def mock_post(*args, **kwargs):
         class MockResponse:
             def json(self):
@@ -47,6 +51,7 @@ def test_infer_sync(monkeypatch, test_api_key):
         assert response.json()["result"] == "ok"
 
 def test_infer_async(monkeypatch, test_api_key):
+    app = create_app()
     def mock_post(*args, **kwargs):
         class MockResponse:
             def json(self):
@@ -63,35 +68,46 @@ def test_infer_async(monkeypatch, test_api_key):
         assert "job_id" in response.json()
 
 def test_infer_missing_model(monkeypatch, test_api_key):
+    app = create_app()
     payload = {"model": "not_a_real_model", "input": {"prompt": "test"}}
     with TestClient(app) as client:
         response = client.post("/infer", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
         assert response.status_code == 404 or response.status_code == 400
 
 def test_infer_missing_input(monkeypatch, test_api_key):
+    app = create_app()
     payload = {"model": "musicgen"}
     with TestClient(app) as client:
         response = client.post("/infer", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
         assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_missing_model_field(monkeypatch, test_api_key):
+    app = create_app()
     payload = {"input": {"prompt": "test"}}
     with TestClient(app) as client:
         response = client.post("/infer", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
         assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_invalid_payload_type(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
+
     payload = ["not", "a", "dict"]
     with TestClient(app) as client:
         response = client.post("/infer", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
         assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_empty_payload(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
     with TestClient(app) as client:
         response = client.post("/infer", json={}, headers={"Authorization": f"Bearer {test_api_key}"})
         assert response.status_code == 422 or response.status_code == 400
 
 def test_infer_upstream_httpx_exception(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
+
     def mock_post(*args, **kwargs):
         raise Exception("Upstream error")
     monkeypatch.setattr("httpx.post", mock_post)
@@ -101,6 +117,9 @@ def test_infer_upstream_httpx_exception(monkeypatch, test_api_key):
         assert response.status_code == 502 or response.status_code == 500
 
 def test_infer_upstream_non_200(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
+
     class MockResponse:
         def __init__(self, status_code):
             self._status_code = status_code
@@ -119,6 +138,9 @@ def test_infer_upstream_non_200(monkeypatch, test_api_key):
 
 # Fuzz/large payload test
 def test_infer_large_payload(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
+
     def mock_post(*args, **kwargs):
         class MockResponse:
             def json(self):
@@ -136,6 +158,9 @@ def test_infer_large_payload(monkeypatch, test_api_key):
 
 # Concurrency/async job status simulation
 def test_infer_concurrent_requests(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
+
     def mock_post(*args, **kwargs):
         class MockResponse:
             def json(self):
@@ -161,6 +186,9 @@ def test_infer_concurrent_requests(monkeypatch, test_api_key):
         assert all(code == 200 for code in results)
 
 def test_infer_valid_api_key(monkeypatch, test_api_key):
+    app = create_app()
+    monkeypatch.setattr("transformers.pipeline", lambda *a, **kw: lambda *a, **kw: None)
+
     payload = {"model": "musicgen", "input": {"prompt": "test"}}
     def mock_post(*args, **kwargs):
         class MockResponse:
@@ -177,27 +205,76 @@ def test_infer_valid_api_key(monkeypatch, test_api_key):
         assert response.json()["result"] == "ok"
 
 def test_chat_completions_missing_api_key():
-    payload = {"model": "musicgen", "messages": [{"role": "user", "content": "hi"}]}
+    from router.main import rate_limiter_dep
+    app = create_app()
+    # Print all routes for debug
+    print("ROUTES:", [route.path for route in app.routes])
+    # Override rate limiter to no-op for test isolation
+    async def no_op_rate_limiter(request):
+        pass
+    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+
+    payload = {"model": "openai/gpt-3.5-turbo", "messages": [{"role": "user", "content": "hi"}]}
     with TestClient(app) as client:
         response = client.post("/v1/chat/completions", json=payload)
         assert response.status_code == 401
 
+
 def test_chat_completions_invalid_api_key(test_api_key):
+    from router.main import rate_limiter_dep
+    app = create_app()
+    # Print all routes for debug
+    print("ROUTES:", [route.path for route in app.routes])
+    # Override rate limiter to no-op for test isolation
+    async def no_op_rate_limiter(request):
+        pass
+    app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
+
     headers = {"Authorization": "Bearer invalid-key"}
-    payload = {"model": "musicgen", "messages": [{"role": "user", "content": "hi"}]}
+    payload = {"model": "openai/gpt-3.5-turbo", "messages": [{"role": "user", "content": "hi"}]}
     with TestClient(app) as client:
         response = client.post("/v1/chat/completions", json=payload, headers=headers)
         assert response.status_code in (401, 403)
 
+
 def test_chat_completions_rate_limit(test_api_key):
+    app = create_app()
     headers = {"Authorization": f"Bearer {test_api_key}"}
     payload = {"model": "musicgen", "messages": [{"role": "user", "content": "hi"}]}
     with TestClient(app) as client:
         # Simulate rapid requests to hit rate limit
-        for _ in range(105):
+        hit_429 = False
+        for _ in range(110):
             response = client.post("/v1/chat/completions", json=payload, headers=headers)
-        # Should get 429 at some point
-        assert any(
-            client.post("/v1/chat/completions", json=payload, headers=headers).status_code == 429
-            for _ in range(5)
-        )
+            if response.status_code == 429:
+                hit_429 = True
+                break
+        assert hit_429, "Did not hit rate limit after 110 requests"
+
+def test_infer_rate_limit(test_api_key):
+    app = create_app()
+    headers = {"Authorization": f"Bearer {test_api_key}"}
+    payload = {"model": "musicgen", "input": {"prompt": "hi"}}
+    with TestClient(app) as client:
+        hit_429 = False
+        for _ in range(110):
+            response = client.post("/infer", json=payload, headers=headers)
+            if response.status_code == 429:
+                hit_429 = True
+                break
+        assert hit_429, "Did not hit rate limit on /infer after 110 requests"
+
+def test_infer_missing_api_key():
+    app = create_app()
+    payload = {"model": "musicgen", "input": {"prompt": "hi"}}
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload)
+        assert response.status_code == 401
+
+def test_infer_invalid_api_key():
+    app = create_app()
+    headers = {"Authorization": "Bearer invalid-key"}
+    payload = {"model": "musicgen", "input": {"prompt": "hi"}}
+    with TestClient(app) as client:
+        response = client.post("/infer", json=payload, headers=headers)
+        assert response.status_code in (401, 403)
