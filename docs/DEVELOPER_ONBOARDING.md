@@ -1,5 +1,14 @@
 # Developer Onboarding Guide: Intelligent Inference Router (IIR)
 
+> **Documentation Map:**
+> - **Setup Guide:** Basic installation & running the stack (see `SETUP.md`).
+> - **Developer Onboarding (this doc):** Dev setup, contribution, API key system.
+> - **API Reference:** See `API.md` for all endpoints.
+> - **Troubleshooting:** See `TROUBLESHOOTING.md` for common errors.
+> - **Architecture:** See `ARCHITECTURE.md` for system overview.
+
+> **For basic installation and running the stack, see `SETUP.md`.**
+
 Welcome to the IIR codebase! This guide will help you get productive quickly, understand the core features, and interact with the API using Python and JavaScript/TypeScript.
 
 ---
@@ -27,10 +36,9 @@ Welcome to the IIR codebase! This guide will help you get productive quickly, un
 IIR is a containerized, OpenAI-compatible inference gateway that routes LLM requests to local or remote models, supports prompt classification, and provides robust monitoring and caching. All endpoints are protected by a production-grade API key system.
 
 ## Environment Setup
-- See `docs/SETUP.md` for Python, Docker, and Redis setup instructions.
-- Copy `.env.example` to `.env` and fill in required secrets.
-- Install dependencies: `pip install -r requirements.txt`
-- Start services: `docker-compose up`
+- **See `docs/SETUP.md` for all Python, Docker, Redis, and Hugging Face setup instructions.**
+- After following SETUP.md, install any additional dev dependencies as needed: `pip install -r requirements.txt`
+- Start services as described in SETUP.md (`docker compose up -d`).
 
 ## Key Features
 - **OpenAI-compatible REST endpoints**: `/v1/chat/completions`, `/v1/models`, `/infer`, etc.

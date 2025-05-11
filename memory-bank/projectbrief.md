@@ -1,5 +1,12 @@
 # Project Brief: Intelligent Inference Router (IIR) - MVP Phase 1a
 
+---
+
+> **For further details and onboarding:**
+> - **Setup Guide:** See `docs/SETUP.md` for installation and running the stack.
+> - **Developer Onboarding:** See `docs/DEVELOPER_ONBOARDING.md` for dev setup, contribution, and API key management.
+> - **Architecture:** See `docs/ARCHITECTURE.md` for high-level system diagrams and request lifecycle.
+
 ## Purpose
 Establish a robust, modular gateway for LLM inference requests, capable of intelligent routing between local and (future) external model backends. The MVP focuses on validating core routing, local model integration, caching, and monitoring, running on a high-performance local machine with GPU acceleration.
 

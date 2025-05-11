@@ -1,0 +1,27 @@
+providers:
+  openai:
+    url: https://api.openai.com/v1/chat/completions
+    api_key: ${OPENAI_API_KEY}
+    quota: 1000000
+    healthy: true
+  google:
+    url: https://api.google.com/v1/chat/completions
+    api_key: ${GOOGLE_API_KEY}
+    quota: 500000
+    healthy: true
+  groq:
+    url: https://api.groq.com/v1/chat/completions
+    api_key: ${GROQ_API_KEY}
+    quota: 500000
+    healthy: true
+routing:
+  default: openai
+  model_prefix_map:
+    gpt-: openai
+    openai/: openai
+    google/: google
+    groq/: groq
+caching:
+  enabled: true
+  backend: memory
+  ttl: 60

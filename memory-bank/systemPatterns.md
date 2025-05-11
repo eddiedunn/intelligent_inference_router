@@ -1,5 +1,7 @@
 # System Patterns: IIR MVP Phase 1a
 
+> For a high-level system diagram and request lifecycle, see `docs/ARCHITECTURE.md`.
+
 ## Architecture
 - Containerized microservice design (Docker Compose)
 - FastAPI for API ingress, modular Python package layout

@@ -1,4 +1,9 @@
-# Progress: IIR MVP Phase 1a
+# Progress Tracker: IIR MVP Phase 1a
+
+---
+
+> **For known issues and debugging:** See `docs/TROUBLESHOOTING.md`
+> **For setup changes:** See `docs/SETUP.md`
 
 ## What Works
 - Project memory initialized (projectbrief, productContext, activeContext, systemPatterns, techContext)

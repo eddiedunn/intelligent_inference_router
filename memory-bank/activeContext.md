@@ -1,5 +1,11 @@
 # Active Context: IIR MVP Phase 1a
 
+---
+
+> **For current debugging and monitoring practices, see:**
+> - `docs/TROUBLESHOOTING.md`
+> - `docs/MONITORING.md`
+
 ## Current Focus
 - Debugging and stabilizing Redis connectivity for test suite and FastAPILimiter integration
 - Ensuring all FastAPILimiter-dependent tests run and pass using a single Redis instance for the suite

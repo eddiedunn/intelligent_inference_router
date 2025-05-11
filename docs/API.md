@@ -1,5 +1,7 @@
 # API Reference: IIR MVP Phase 1a
 
+> **Note:** This is the canonical API reference for the Intelligent Inference Router. All other API docs (e.g., `api.md`) are deprecated and will be removed.
+
 ## Authentication
 - All endpoints except `/health` and `/metrics` require: `Authorization: Bearer <API_KEY>`
 
@@ -117,17 +119,46 @@ All incoming requests and outgoing responses for `/infer`, `/v1/chat/completions
 - Model names must be provided as `<provider>/<model>`, e.g. `openai/gpt-4o`, `anthropic/claude-3-sonnet`.
 - Use `/v1/models` to discover the full list of available models.
 
+### Model Naming Convention
+All model requests must use the format:
+
+```
+<provider>/<model_name>
+```
+- The text before the first `/` is the provider key (e.g., `openai`, `openrouter`, `anthropic`, etc).
+- Everything after the first `/` is the model name, which may itself contain slashes (e.g., `meta-llama/Llama-3-70b-chat-hf`).
+- Example: `openrouter/meta-llama/Llama-3-70b-chat-hf`
+
+### Example Model Names
+- `openai/gpt-4`
+- `openrouter/meta-llama/Llama-3-70b-chat-hf`
+- `anthropic/claude-3-opus-20240229`
+
 ---
 
-## Example Request/Response
+## Example Requests & Responses
+### POST /v1/completions
+Request:
+```json
+{
+  "model": "openrouter/meta-llama/Llama-3-70b-chat-hf",
+  "prompt": "Hello!"
+}
+```
+Response:
+```json
+{
+  "result": "...",
+  "model": "meta-llama/Llama-3-70b-chat-hf"
+}
+```
+
 ### POST /v1/chat/completions
 Request:
 ```json
 {
-  "model": "meta-llama/Meta-Llama-3-8B-Instruct",
-  "messages": [
-    {"role": "user", "content": "Hello!"}
-  ]
+  "model": "openai/gpt-4",
+  "messages": [{"role": "user", "content": "Hello!"}]
 }
 ```
 Response (success):
@@ -148,31 +179,41 @@ Response (error):
 {"detail": "Classifier error: ..."}
 ```
 
-## Error Codes
-- 400: Bad request
-- 401: Unauthorized
+### GET /v1/models
+Returns a list of available models in OpenAI format.
+
+### POST /infer
+Legacy endpoint for direct model inference.
+
+---
+
+## Error Handling & Codes
+- 400: Invalid request or missing/invalid model name
+- 401: Missing or invalid API key
 - 403: Forbidden
 - 404: Model not found
 - 413: Payload too large
 - 429: Rate limit exceeded
 - 500: Internal error
 - 501: Not implemented (remote path)
-- 502: vLLM backend error
+- 502: Provider/server error (e.g., vLLM backend error)
 - 503: Classifier error
 
-## Error Response Schema
-- All errors return a JSON body with at least a `detail` field describing the error.
-- Example:
+### Error Response Schema
+All errors return a JSON body with at least a `detail` field describing the error.
+Example:
 ```json
 {"detail": "Request exceeds max token limit"}
 ```
-- For future: consider `{ "error": { "code": "ERROR_CODE", "message": "..." } }` for more structured errors.
+For future: consider `{ "error": { "code": "ERROR_CODE", "message": "..." } }` for more structured errors.
 
-## Rate Limiting
+### Rate Limiting
 - Exceeding per-IP limit returns 429 with body `{ "detail": "Rate limit exceeded" }`
 
-## Common Pitfalls & Troubleshooting
+### Authentication
+All endpoints except `/health` and `/metrics` require an API key via the `Authorization: Bearer <API_KEY>` header.
 
+### Common Pitfalls & Troubleshooting
 - **401 Unauthorized / 403 Forbidden:**
   - Did you set `IIR_API_KEY` in your `.env` and client config?
   - Are you passing the correct `Authorization: Bearer <API_KEY>` header?
@@ -186,6 +227,16 @@ Response (error):
   - Is `REMOTE_LOG_SINK` set in your `.env`? Is your UDP listener running and accessible?
 
 See `docs/TROUBLESHOOTING.md` for more.
+
+---
+
+## Adding a New Provider
+- Implement a new `ProviderClient` subclass in `router/provider_clients/`.
+- Register your provider in `PROVIDER_CLIENTS` in `router/provider_clients/__init__.py`.
+- All routing and parsing will work automatically if you follow the model naming convention above.
+
+## Bypass Mode (For Testing)
+If enabled via environment variable (`IIR_BYPASS_REGISTRY_CACHE`), the router will bypass registry and cache checks for external models.
 
 ## Remote Log Debugging
 

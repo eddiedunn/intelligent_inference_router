@@ -152,15 +152,20 @@ def create_app(metrics_registry=None):
 
         print("[DEBUG] create_app: before /infer endpoint")
         @app.post("/infer", dependencies=[Depends(api_key_auth), Depends(rate_limiter_dep)])
-        def infer(req: InferRequest):
+        async def infer(req: InferRequest = Body(...)):
             # HYBRID SCRUB INCOMING REQUEST
             safe_req = hybrid_scrub_and_log(req.model_dump(), direction="incoming /infer request")
             # Load config and get service URL
             config = load_config()
             services = config.get("services", {})
-            service_url = services.get(safe_req['model'])
-            if not service_url:
+            from router.providers import parse_provider_and_model
+            try:
+                provider, model_name = parse_provider_and_model(safe_req['model'])
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid model string: {e}")
+            if safe_req['model'] not in services:
                 raise HTTPException(status_code=404, detail="Model not found")
+            service_url = services[safe_req['model']]
             # Forward the request to the BentoML service (sync or async)
             payload = {"input": safe_req['input']}
             if safe_req.get('async_'):
@@ -173,6 +178,30 @@ def create_app(metrics_registry=None):
             except Exception as e:
                 raise HTTPException(status_code=502, detail=f"Upstream error: {e}")
         print("[DEBUG] create_app: after /infer endpoint")
+
+        # --- OpenAI-compatible proxy endpoints ---
+        from .openai_routes import router as openai_router, set_provider_router
+        app.include_router(openai_router)
+
+        @app.on_event("startup")
+        async def startup_event():
+            import yaml
+            from .provider_router import ProviderRouter
+            from .cache import get_cache, SimpleCache
+            config_path = os.path.join(os.path.dirname(__file__), "config.example.yaml")
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+            try:
+                cache_backend = await get_cache()
+                cache_type = 'redis'
+            except Exception as e:
+                import logging
+                logging.getLogger("iir.startup").warning(f"Redis unavailable, falling back to SimpleCache: {e}")
+                cache_backend = SimpleCache()
+                cache_type = 'simple'
+            provider_router = ProviderRouter(config, cache_backend, cache_type)
+            app.state.provider_router = provider_router
+            set_provider_router(provider_router)
 
         print("[DEBUG] create_app: before metrics setup")
         metrics = get_metrics(registry=metrics_registry)
@@ -274,9 +303,11 @@ def create_app(metrics_registry=None):
             body = scrubbed_body
 
             model = body.get("model")
-            if not model or "/" not in model:
-                return JSONResponse(status_code=400, content={"error": {"message": "Model name must be in <provider>/<model> format.", "type": "invalid_request_error", "param": "model", "code": "invalid_model_name"}})
-            provider, model_name = model.split("/", 1)
+            from router.providers import parse_provider_and_model
+            try:
+                provider, model_name = parse_provider_and_model(model)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error", "param": "model", "code": "invalid_model_name"}})
 
             from router.provider_clients import PROVIDER_CLIENTS
             client_obj = PROVIDER_CLIENTS.get(provider)
@@ -286,6 +317,41 @@ def create_app(metrics_registry=None):
             # Pass model_name to the client
             try:
                 result = await client_obj.chat_completions(body, model_name)
+                return JSONResponse(content=result.content, status_code=result.status_code)
+            except Exception as e:
+                print(f"[DEBUG] Exception in provider call: {e}")
+                return JSONResponse(status_code=502, content={"error": {"message": f"Provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
+
+        @app.post("/v1/completions")
+        async def completions(request: Request, api_key=Depends(api_key_auth)):
+            print(f"[DEBUG] HANDLER ENTRY: /v1/completions, request={request}")
+            await rate_limiter_dep(request)
+            try:
+                body = await request.json()
+            except Exception:
+                return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
+
+            # --- SCRUB INCOMING REQUEST FOR SECRETS ---
+            scrubbed_body = hybrid_scrub_and_log(body, direction="incoming completions request")
+            if scrubbed_body != body:
+                print("[WARNING] Secret(s) detected and scrubbed from incoming inference request.")
+            body = scrubbed_body
+
+            model = body.get("model")
+            from router.providers import parse_provider_and_model
+            try:
+                provider, model_name = parse_provider_and_model(model)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error", "param": "model", "code": "invalid_model_name"}})
+
+            from router.provider_clients import PROVIDER_CLIENTS
+            client_obj = PROVIDER_CLIENTS.get(provider)
+            if not client_obj:
+                return JSONResponse(status_code=400, content={"error": {"message": f"Unknown or unconfigured provider: {provider}", "type": "invalid_request_error", "param": "model", "code": "unknown_provider"}})
+
+            # Pass model_name to the client
+            try:
+                result = await client_obj.completions(body, model_name)
                 return JSONResponse(content=result.content, status_code=result.status_code)
             except Exception as e:
                 print(f"[DEBUG] Exception in provider call: {e}")
@@ -304,6 +370,11 @@ def create_app(metrics_registry=None):
             body = hybrid_scrub_and_log(body, direction="incoming async chat completion request")
             model = body.get("model")
             messages = body.get("messages")
+            from router.providers import parse_provider_and_model
+            try:
+                provider, model_name = parse_provider_and_model(model)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"detail": str(e)})
             if not model or not messages:
                 return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
             job_id = str(uuid.uuid4())

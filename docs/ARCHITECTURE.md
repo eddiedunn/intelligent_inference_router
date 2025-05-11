@@ -1,5 +1,12 @@
 # Architecture: IIR MVP Phase 1a
 
+> **Documentation Map:**
+> - **Setup Guide:** See `SETUP.md`
+> - **Developer Onboarding:** See `DEVELOPER_ONBOARDING.md`
+> - **API Reference:** See `API.md`
+> - **Troubleshooting:** See `TROUBLESHOOTING.md`
+> - **System Patterns:** See `memory-bank/systemPatterns.md` for deep dives on architecture/design patterns.
+
 ## Overview
 - FastAPI router service (auth, rate limiting, cache, classifier, routing)
 - Local vLLM backend (Llama-3-8B-Instruct)
@@ -55,4 +62,11 @@ sequenceDiagram
     end
 ```
 
-See `memory-bank/systemPatterns.md` for more.
+See `memory-bank/systemPatterns.md` for more on design patterns and technical decisions, including:
+- Async cache initialization and dependency injection (ProviderRouter DI)
+- Provider interface abstraction
+- Middleware for authentication, rate limiting, and logging
+- Error handling and standardized JSON responses
+- Metrics instrumentation
+
+For the most up-to-date and detailed architectural decisions, always check `memory-bank/systemPatterns.md`.

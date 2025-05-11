@@ -1,5 +1,12 @@
 # Troubleshooting: IIR MVP Phase 1a
 
+> **Documentation Map:**
+> - **Setup Guide:** See `SETUP.md`
+> - **Developer Onboarding:** See `DEVELOPER_ONBOARDING.md`
+> - **API Reference:** See `API.md`
+> - **Configuration:** See `CONFIGURATION.md` for environment variables and config troubleshooting
+> - **Monitoring:** See `MONITORING.md` for metrics and dashboard setup
+
 ## Common Issues
 - **Docker fails to build:** Check NVIDIA drivers, toolkit, and Docker versions
 - **vLLM not starting:** Check model ID, GPU availability, and logs

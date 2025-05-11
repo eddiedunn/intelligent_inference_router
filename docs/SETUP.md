@@ -1,5 +1,14 @@
 # Setup Guide: IIR MVP Phase 1a
 
+> **Documentation Map:**
+> - **Setup Guide (this doc):** Install & run IIR for all users.
+> - **Developer Onboarding:** Dev setup, contribution, API key system (see `DEVELOPER_ONBOARDING.md`).
+> - **API Reference:** See `API.md` for all endpoints.
+> - **Troubleshooting:** See `TROUBLESHOOTING.md` for common errors.
+> - **Architecture:** See `ARCHITECTURE.md` for system overview.
+
+> **Are you a developer or contributor?** See `DEVELOPER_ONBOARDING.md` for dev-specific setup, contribution, and API key management.
+
 ## Prerequisites
 - Debian 12 (or compatible Linux)
 - NVIDIA RTX 4090 with drivers (≥535) for GPU inference

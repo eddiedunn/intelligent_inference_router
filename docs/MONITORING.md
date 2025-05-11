@@ -1,9 +1,18 @@
 # Monitoring: IIR MVP Phase 1a
 
+> **Documentation Map:**
+> - **Setup Guide:** See `SETUP.md`
+> - **Developer Onboarding:** See `DEVELOPER_ONBOARDING.md`
+> - **API Reference:** See `API.md`
+> - **Troubleshooting:** See `TROUBLESHOOTING.md` for debugging steps and common issues.
+> - **Configuration:** See `CONFIGURATION.md` for environment variables and config options.
+
 ## Prometheus
 - Router exposes metrics at `/metrics`
 - Prometheus scrapes `router:8000`
 - See `docker/prometheus.yml` for config
+- Monitor key metrics: request rate, latency, error rate, cache hit ratio, and rate limiting events
+- Monitor Redis health and FastAPI-Limiter status for rate limiting issues
 
 ## Grafana
 - Access at `http://localhost:3000` (admin/admin)
