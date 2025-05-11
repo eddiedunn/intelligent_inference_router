@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
+print("[DEBUG] REDIS_URL in conftest.py:", os.environ.get("REDIS_URL"))
 # Set MOCK_PROVIDERS=1 for all tests
 os.environ["MOCK_PROVIDERS"] = "1"
 
@@ -53,7 +56,7 @@ class DummyRateLimiter:
 # Patch all test clients to use DummyRateLimiter
 @pytest.fixture
 def client():
-    from router.main import app
+    from router.main import create_app
     app.dependency_overrides["RateLimiter"] = lambda: DummyRateLimiter()
     class PatchedTestClient(TestClient):
         def request(self, *args, **kwargs):
@@ -66,7 +69,7 @@ def client():
 @pytest.fixture(scope="session")
 def uvicorn_server():
     """Start the FastAPI app with uvicorn on a random port for integration tests."""
-    from router.main import app
+    from router.main import create_app
     import uvicorn
     # Find a free port
     sock = socket.socket()

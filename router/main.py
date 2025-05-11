@@ -16,6 +16,7 @@ from router.classifier import classify_prompt
 from router.providers.local_vllm import generate_local
 from router.metrics import instrument_app, get_metrics
 import logging
+logger = logging.getLogger("router.main")
 import os
 import asyncio
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
@@ -204,7 +205,7 @@ def create_app(metrics_registry=None):
                 return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
 
             # --- SCRUB INCOMING REQUEST FOR SECRETS ---
-            scrubbed_body = scrub_secrets_from_data(body)
+            scrubbed_body = hybrid_scrub_and_log(body, direction="incoming chat completion request")
             if scrubbed_body != body:
                 print("[WARNING] Secret(s) detected and scrubbed from incoming inference request.")
             body = scrubbed_body
@@ -388,64 +389,8 @@ import secrets
 from router.apikey_db import add_api_key
 
 
-def create_app(metrics_registry=None):
-    print("[DEBUG] Entering create_app")
-    configure_udp_logging()
-    print("[DEBUG] APP STARTUP: FastAPI app is being created (via factory)")
-    app = FastAPI(title="Intelligent Inference Router", version="1.0")
-
-    @app.get("/health")
-    async def health():
-        return {"status": "ok"}
-
-    @app.get("/version")
-    async def version():
-        return {"version": "1.0.0"}
-
-    @app.post("/infer", dependencies=[Depends(api_key_auth)])
-    def infer(req: InferRequest):
-        # HYBRID SCRUB INCOMING REQUEST
-        safe_req = hybrid_scrub_and_log(req.model_dump(), direction="incoming /infer request")
-        # Load config and get service URL
-        config = load_config()
-        services = config.get("services", {})
-        service_url = services.get(safe_req['model'])
-        if not service_url:
-            raise HTTPException(status_code=404, detail="Model not found")
-        # Forward the request to the BentoML service (sync or async)
-        payload = {"input": safe_req['input']}
-        if safe_req.get('async_'):
-            payload["async"] = True
-        try:
-            resp = httpx.post(f"{service_url}/infer", json=payload)
-            # HYBRID SCRUB OUTGOING RESPONSE
-            safe_content = hybrid_scrub_and_log(resp.json(), direction="outgoing /infer response")
-            return JSONResponse(content=safe_content, status_code=resp.status_code)
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Upstream error: {e}")
-
-    @app.post("/api/v1/apikeys")
-    async def register_apikey(request: Request, payload: APIKeyRegistrationRequest = Body(...)):
-        client_ip = request.client.host
-        if not is_allowed_ip(client_ip):
-            raise HTTPException(status_code=403, detail="API key registration is restricted to local network.")
-        key = secrets.token_urlsafe(32)
-        add_api_key(
-            key=key,
-            created_ip=client_ip,
-            description=payload.description,
-            priority=payload.priority or 0,
-            is_superadmin=False
-        )
-        apikey_metrics = get_apikey_metrics(registry=metrics_registry)
-        apikey_metrics['registrations_total'].inc()
-        print(f"[INFO] API key registered from {client_ip} (desc={payload.description})")
-        return {"api_key": key, "priority": payload.priority or 0}
-
-    # ... (add any other endpoints and middleware as needed) ...
-
-    return app
 
 # Default app instance for production
 if __name__ == "__main__":
     app = create_app()
+

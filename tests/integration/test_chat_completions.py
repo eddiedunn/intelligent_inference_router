@@ -1,7 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
-from router.main import app
+from router.main import create_app
+from prometheus_client import CollectorRegistry
 
+app = create_app(metrics_registry=CollectorRegistry())
 client = TestClient(app)
 
 @pytest.fixture

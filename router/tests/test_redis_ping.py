@@ -2,7 +2,12 @@ import pytest
 import redis.asyncio as redis
 import asyncio
 
+from dotenv import load_dotenv
+import os
+
 def test_redis_ping():
-    r = redis.from_url("redis://localhost:6379/0", encoding="utf-8", decode_responses=True)
+    load_dotenv()
+    url = os.environ["REDIS_URL"]
+    r = redis.from_url(url, encoding="utf-8", decode_responses=True)
     pong = asyncio.run(r.ping())
     assert pong is True
