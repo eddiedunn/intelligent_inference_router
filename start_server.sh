@@ -1,0 +1,5 @@
+#!/bin/bash
+set -a
+[ -f .env ] && source .env
+set +a
+uvicorn router.main:app --reload --host 0.0.0.0 --port 8000

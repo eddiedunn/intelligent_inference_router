@@ -56,6 +56,13 @@ r = requests.post("http://localhost:8000/api/v1/apikeys", json=payload)
 print(r.json())  # {'api_key': '...', 'priority': 10}
 ```
 
+#### Example (curl)
+```bash
+curl -X POST http://localhost:8000/api/v1/apikeys \
+  -H "Content-Type: application/json" \
+  -d '{"description":"dev test key","priority":10}'
+```
+
 ### Usage
 Include your API key in the `Authorization` header for all protected endpoints:
 
@@ -93,9 +100,18 @@ fetch("http://localhost:8000/infer", {
 ### Listing Models
 Get all available models:
 ```python
+import requests
+headers = {"Authorization": f"Bearer {api_key}"}
 r = requests.get("http://localhost:8000/v1/models", headers=headers)
 print(r.json())
 ```
+
+#### Example (curl)
+```bash
+curl -X GET http://localhost:8000/v1/models \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+Replace `YOUR_API_KEY` with your actual API key.
 
 ### Refreshing Registry
 Trigger hardware/model discovery and registry refresh:

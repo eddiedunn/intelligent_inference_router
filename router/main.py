@@ -48,7 +48,7 @@ def get_rate_limiter():
     try:
         from fastapi_limiter.depends import RateLimiter
         print("[DEBUG] fastapi_limiter.depends.RateLimiter imported successfully")
-        limiter = RateLimiter(times=100, seconds=60)
+        limiter = RateLimiter(times=200, seconds=60)
         print(f"[DEBUG] RateLimiter instantiated: {limiter}")
         return limiter
     except Exception as e:
@@ -61,6 +61,19 @@ from starlette.responses import Response
 async def rate_limiter_dep(request: Request):
     print("[DEBUG] rate_limiter_dep called")
     limiter = get_rate_limiter()
+    # Print the Redis key used for this request
+    key_func = getattr(limiter, 'key_func', None)
+    if key_func:
+        key = await key_func(request)
+        print(f"[DEBUG] RateLimiter key for this request: {key}")
+    else:
+        print(f"[DEBUG] RateLimiter has no key_func attribute! Limiter class: {limiter.__class__.__name__}, dir: {dir(limiter)}")
+        # Print the identifier attribute if present
+        identifier = getattr(limiter, 'identifier', None)
+        print(f"[DEBUG] RateLimiter identifier attribute: {identifier}")
+        # Try to inspect other possible attributes or methods for key extraction
+        # If you know the attribute/method for your fastapi-limiter version, add it here
+
     dummy_response = Response()
     try:
         await limiter(request, dummy_response)
@@ -78,7 +91,53 @@ def create_app(metrics_registry=None):
         print("[DEBUG] create_app: before configure_udp_logging")
         configure_udp_logging()
         print("[DEBUG] create_app: after configure_udp_logging, before FastAPI init")
-        app = FastAPI(title="Intelligent Inference Router", version="1.0")
+        from contextlib import asynccontextmanager
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            if "redis://redis:" in redis_url:
+                redis_url = "redis://localhost:6379/0"
+            redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+            await FastAPILimiter.init(redis_client)
+            yield
+            redis_client = FastAPILimiter.redis
+            if redis_client:
+                await redis_client.close()
+        app = FastAPI(title="Intelligent Inference Router", version="1.0", lifespan=lifespan)
+        print("[DEBUG] create_app: after FastAPI init")
+
+        # --- Always register /api/v1/apikeys endpoint on this app instance ---
+        from fastapi import Request
+        @app.post("/api/v1/apikeys")
+        async def register_apikey(request: Request, registration: APIKeyRegistrationRequest = Body(...)):
+            new_key = secrets.token_urlsafe(32)
+            ip = request.client.host if request.client else "unknown"
+            add_api_key(new_key, ip, registration.description, registration.priority)
+            metrics = get_apikey_metrics(metrics_registry)
+            metrics['registrations_total'].inc()
+            return {"api_key": new_key, "description": registration.description, "priority": registration.priority}
+
+        # Debug: Print all registered routes
+        print("[DEBUG] Registered routes:")
+        for route in app.routes:
+            print(f"[DEBUG] Route: {getattr(route, 'path', None)} -> {getattr(route, 'endpoint', None)}")
+
+        print("[DEBUG] create_app: before configure_udp_logging")
+        configure_udp_logging()
+        print("[DEBUG] create_app: after configure_udp_logging, before FastAPI init")
+        from contextlib import asynccontextmanager
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            if "redis://redis:" in redis_url:
+                redis_url = "redis://localhost:6379/0"
+            redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+            await FastAPILimiter.init(redis_client)
+            yield
+            redis_client = FastAPILimiter.redis
+            if redis_client:
+                await redis_client.close()
+        app = FastAPI(title="Intelligent Inference Router", version="1.0", lifespan=lifespan)
         print("[DEBUG] create_app: after FastAPI init")
 
         print("[DEBUG] create_app: before health endpoint")
@@ -87,8 +146,12 @@ def create_app(metrics_registry=None):
             return {"status": "ok"}
         print("[DEBUG] create_app: after health endpoint")
 
+        @app.get("/version")
+        def version():
+            return {"version": "1.0"}
+
         print("[DEBUG] create_app: before /infer endpoint")
-        @app.post("/infer", dependencies=[Depends(api_key_auth)])
+        @app.post("/infer", dependencies=[Depends(api_key_auth), Depends(rate_limiter_dep)])
         def infer(req: InferRequest):
             # HYBRID SCRUB INCOMING REQUEST
             safe_req = hybrid_scrub_and_log(req.model_dump(), direction="incoming /infer request")
@@ -264,7 +327,7 @@ def create_app(metrics_registry=None):
             return job["result"]
 
         @app.get("/v1/models")
-        async def get_models():
+        async def get_models(api_key=Depends(api_key_auth)):
             # Return available models from registry in OpenAI-compatible format
             models = list_models()["data"]
             # OpenAI format: [{"id": ..., "object": "model", "owned_by": <provider>, ...}]
@@ -294,19 +357,6 @@ def create_app(metrics_registry=None):
             status = save_registry_status()
             return {"status": "ok", "message": "Model registry refreshed.", "registry_status": status}
 
-        @app.on_event("startup")
-        async def startup_event():
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-            if "redis://redis:" in redis_url:
-                redis_url = "redis://localhost:6379/0"
-            redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
-            await FastAPILimiter.init(redis_client)
-
-        @app.on_event("shutdown")
-        async def shutdown_event():
-            redis_client = FastAPILimiter.redis
-            if redis_client:
-                await redis_client.close()
 
         @app.get("/metrics")
         def metrics():
@@ -388,7 +438,19 @@ def hybrid_scrub_and_log(data, direction="incoming"):
 import secrets
 from router.apikey_db import add_api_key
 
+# For ASGI/uvicorn compatibility
+app = create_app()
 
+# Always register /api/v1/apikeys endpoint on the global app instance
+from fastapi import Request
+@app.post("/api/v1/apikeys")
+async def register_apikey(request: Request, registration: 'APIKeyRegistrationRequest' = Body(...)):
+    new_key = secrets.token_urlsafe(32)
+    ip = request.client.host if request.client else "unknown"
+    add_api_key(new_key, ip, registration.description, registration.priority)
+    metrics = get_apikey_metrics()
+    metrics['registrations_total'].inc()
+    return {"api_key": new_key, "description": registration.description, "priority": registration.priority}
 
 # Default app instance for production
 if __name__ == "__main__":

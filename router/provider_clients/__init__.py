@@ -8,6 +8,7 @@ from .anthropic import AnthropicClient
 from .grok import GrokClient
 from .openrouter import OpenRouterClient
 from .openllama import OpenLLaMAClient
+from router.providers import parse_provider_and_model
 
 # Registry for provider clients (by provider key)
 PROVIDER_CLIENTS = {

@@ -11,7 +11,7 @@ services:
     depends_on:
       - vllm
     volumes:
-      - ./memory-bank:/app/memory-bank:ro
+      - ~/.huggingface:/root/.huggingface:ro
     restart: unless-stopped
     deploy:
       resources:
@@ -27,6 +27,9 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     ports:
       - "8001:8000"
+    volumes:
+      - ~/.huggingface:/root/.huggingface:ro
+      - ~/.cache/huggingface:/root/.cache/huggingface:ro
     deploy:
       resources:
         reservations:

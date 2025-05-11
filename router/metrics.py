@@ -8,18 +8,35 @@ _metrics_cache = {}
 def get_metrics(registry=None):
     """
     Returns a dict of Prometheus metrics, registering them only once per registry.
+    Prevents ValueError from duplicated timeseries by reusing existing metrics if already registered.
     """
     if registry is None:
         registry = REGISTRY
     key = id(registry)
     if key in _metrics_cache:
         return _metrics_cache[key]
+
+    def safe_counter(name, desc):
+        from prometheus_client.metrics import Counter
+        try:
+            return Counter(name, desc, registry=registry)
+        except ValueError:
+            # Already registered, fetch existing
+            return registry._names_to_collectors[name]
+
+    def safe_histogram(name, desc):
+        from prometheus_client.metrics import Histogram
+        try:
+            return Histogram(name, desc, registry=registry)
+        except ValueError:
+            return registry._names_to_collectors[name]
+
     metrics = {
-        "router_requests_total": Counter("router_requests_total", "Total requests received", registry=registry),
-        "router_requests_errors_total": Counter("router_requests_errors_total", "Total error responses", registry=registry),
-        "router_request_latency_seconds": Histogram("router_request_latency_seconds", "Request latency (seconds)", registry=registry),
-        "router_cache_hits_total": Counter("router_cache_hits_total", "Cache hits", registry=registry),
-        "router_cache_misses_total": Counter("router_cache_misses_total", "Cache misses", registry=registry),
+        "router_requests_total": safe_counter("router_requests_total", "Total requests received"),
+        "router_requests_errors_total": safe_counter("router_requests_errors_total", "Total error responses"),
+        "router_request_latency_seconds": safe_histogram("router_request_latency_seconds", "Request latency (seconds)"),
+        "router_cache_hits_total": safe_counter("router_cache_hits_total", "Cache hits"),
+        "router_cache_misses_total": safe_counter("router_cache_misses_total", "Cache misses"),
     }
     _metrics_cache[key] = metrics
     return metrics

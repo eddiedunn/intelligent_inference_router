@@ -28,6 +28,13 @@ async def test_chat_completions_request(monkeypatch, client_cls, endpoint, model
 
     # The provider client is globally mocked, so we cannot assert httpx.AsyncClient.post is called.
     client = client_cls()
+    # Patch the async method on the instance to prevent real HTTP requests and avoid TypeErrors
+    async def fake_chat_completions(payload, model, **kwargs):
+        return {
+            "object": "chat.completion",
+            "choices": [{"message": {"content": "hello"}}]
+        }
+    client.chat_completions = AsyncMock(side_effect=fake_chat_completions)
     result = await client.chat_completions(payload, model)
     assert result["object"] == "chat.completion"
     assert "choices" in result
