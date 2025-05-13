@@ -11,7 +11,8 @@ services:
     depends_on:
       - vllm
     volumes:
-      - ~/.huggingface:/root/.huggingface:ro
+      - ~/.huggingface:/root/.huggingface:rw
+      - ~/.cache/huggingface:/root/.cache/huggingface:rw
     restart: unless-stopped
     deploy:
       resources:
@@ -20,16 +21,18 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
   vllm:
     image: vllm/vllm-openai:latest
-    command: ["--model", "meta-llama/Meta-Llama-3-8B-Instruct"]
+    command: ["--model", "meta-llama/Llama-3.1-8B-Instruct", "--max-model-len", "8192"]
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - HF_TOKEN=${HF_TOKEN}
     ports:
       - "8001:8000"
     volumes:
-      - ~/.huggingface:/root/.huggingface:ro
-      - ~/.cache/huggingface:/root/.cache/huggingface:ro
+      - ~/.huggingface:/root/.huggingface:rw
+      - ~/.cache/huggingface:/root/.cache/huggingface:rw
     deploy:
       resources:
         reservations:

@@ -8,4 +8,7 @@ COPY router/ ./router/
 COPY memory-bank/ ./memory-bank/
 COPY config.defaults.yaml ./
 COPY tests/ ./tests/
-CMD ["uvicorn", "router.main:app", "--host", "0.0.0.0", "--port", "8000"]
+COPY start_server.sh /start_server.sh
+RUN chmod +x /start_server.sh
+COPY .env ./
+ENTRYPOINT ["/start_server.sh"]

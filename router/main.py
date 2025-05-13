@@ -94,13 +94,36 @@ def create_app(metrics_registry=None):
         from contextlib import asynccontextmanager
         @asynccontextmanager
         async def lifespan(app: FastAPI):
+            import yaml
+            from .provider_router import ProviderRouter
+            from .cache import get_cache, SimpleCache
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
             if "redis://redis:" in redis_url:
                 redis_url = "redis://localhost:6379/0"
-            redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
-            await FastAPILimiter.init(redis_client)
+            try:
+                redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+                await FastAPILimiter.init(redis_client)
+            except Exception as e:
+                import logging
+                logging.getLogger("iir.startup").warning(f"Redis unavailable for limiter: {e}")
+                redis_client = None
+            config_path = os.path.join(os.path.dirname(__file__), "config.example.yaml")
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+            try:
+                cache_backend = await get_cache()
+                cache_type = 'redis'
+            except Exception as e:
+                import logging
+                logging.getLogger("iir.startup").warning(f"Redis unavailable, falling back to SimpleCache: {e}")
+                cache_backend = SimpleCache()
+                cache_type = 'simple'
+            provider_router = ProviderRouter(config, cache_backend, cache_type)
+            app.state.provider_router = provider_router
+            print("[DEBUG] provider_router set on app.state (lifespan)")
+            from .openai_routes import set_provider_router
+            set_provider_router(provider_router)
             yield
-            redis_client = FastAPILimiter.redis
             if redis_client:
                 await redis_client.close()
         app = FastAPI(title="Intelligent Inference Router", version="1.0", lifespan=lifespan)
@@ -122,10 +145,6 @@ def create_app(metrics_registry=None):
         for route in app.routes:
             print(f"[DEBUG] Route: {getattr(route, 'path', None)} -> {getattr(route, 'endpoint', None)}")
 
-        print("[DEBUG] create_app: before configure_udp_logging")
-        configure_udp_logging()
-        print("[DEBUG] create_app: after configure_udp_logging, before FastAPI init")
-        from contextlib import asynccontextmanager
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -183,25 +202,6 @@ def create_app(metrics_registry=None):
         from .openai_routes import router as openai_router, set_provider_router
         app.include_router(openai_router)
 
-        @app.on_event("startup")
-        async def startup_event():
-            import yaml
-            from .provider_router import ProviderRouter
-            from .cache import get_cache, SimpleCache
-            config_path = os.path.join(os.path.dirname(__file__), "config.example.yaml")
-            with open(config_path, "r") as f:
-                config = yaml.safe_load(f)
-            try:
-                cache_backend = await get_cache()
-                cache_type = 'redis'
-            except Exception as e:
-                import logging
-                logging.getLogger("iir.startup").warning(f"Redis unavailable, falling back to SimpleCache: {e}")
-                cache_backend = SimpleCache()
-                cache_type = 'simple'
-            provider_router = ProviderRouter(config, cache_backend, cache_type)
-            app.state.provider_router = provider_router
-            set_provider_router(provider_router)
 
         print("[DEBUG] create_app: before metrics setup")
         metrics = get_metrics(registry=metrics_registry)
@@ -511,19 +511,3 @@ from router.apikey_db import add_api_key
 
 # For ASGI/uvicorn compatibility
 app = create_app()
-
-# Always register /api/v1/apikeys endpoint on the global app instance
-from fastapi import Request
-@app.post("/api/v1/apikeys")
-async def register_apikey(request: Request, registration: 'APIKeyRegistrationRequest' = Body(...)):
-    new_key = secrets.token_urlsafe(32)
-    ip = request.client.host if request.client else "unknown"
-    add_api_key(new_key, ip, registration.description, registration.priority)
-    metrics = get_apikey_metrics()
-    metrics['registrations_total'].inc()
-    return {"api_key": new_key, "description": registration.description, "priority": registration.priority}
-
-# Default app instance for production
-if __name__ == "__main__":
-    app = create_app()
-
