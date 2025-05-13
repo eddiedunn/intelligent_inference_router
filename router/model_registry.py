@@ -74,10 +74,31 @@ def load_recommended_models():
 def rebuild_db():
     conn = sqlite3.connect(REGISTRY_PATH)
     c = conn.cursor()
-    c.execute("DROP TABLE IF EXISTS models")
+    # Always drop and recreate the models table
+    c.execute("DROP TABLE IF EXISTS models;")
     c.execute(SCHEMA)
-    c.execute("DELETE FROM models")
-    # ... rest of the rebuild logic ...
+    # Only use the current recommendations file; if empty, registry will be empty
+    models = load_recommended_models()
+    for m in models:
+        c.execute(
+            """
+            INSERT OR REPLACE INTO models (
+                id, provider, location, category_json, function_calling, model_family, traits_json, endpoint_url, file_path, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                m["id"],
+                m["provider"],
+                m["location"],
+                json.dumps(m.get("category", [])),
+                int(m.get("function_calling", False)),
+                m.get("model_family", ""),
+                json.dumps(m.get("traits", [])),
+                m.get("endpoint_url"),
+                m.get("file_path"),
+                json.dumps(m.get("metadata", {})),
+            )
+        )
     conn.commit()
     conn.close()
 

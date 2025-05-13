@@ -108,8 +108,23 @@ def create_app(metrics_registry=None):
                 logging.getLogger("iir.startup").warning(f"Redis unavailable for limiter: {e}")
                 redis_client = None
             config_path = os.path.join(os.path.dirname(__file__), "config.example.yaml")
+            import re
+            def interpolate_env_vars(obj):
+                if isinstance(obj, dict):
+                    return {k: interpolate_env_vars(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [interpolate_env_vars(x) for x in obj]
+                elif isinstance(obj, str):
+                    matches = re.findall(r"\$\{([A-Z0-9_]+)\}", obj)
+                    for var in matches:
+                        obj = obj.replace(f"${{{var}}}", os.environ.get(var, ""))
+                    return obj
+                else:
+                    return obj
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f)
+            config = interpolate_env_vars(config)
+
             try:
                 cache_backend = await get_cache()
                 cache_type = 'redis'
@@ -144,20 +159,6 @@ def create_app(metrics_registry=None):
         print("[DEBUG] Registered routes:")
         for route in app.routes:
             print(f"[DEBUG] Route: {getattr(route, 'path', None)} -> {getattr(route, 'endpoint', None)}")
-
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-            if "redis://redis:" in redis_url:
-                redis_url = "redis://localhost:6379/0"
-            redis_client = await redis.from_url(redis_url, encoding="utf8", decode_responses=True)
-            await FastAPILimiter.init(redis_client)
-            yield
-            redis_client = FastAPILimiter.redis
-            if redis_client:
-                await redis_client.close()
-        app = FastAPI(title="Intelligent Inference Router", version="1.0", lifespan=lifespan)
-        print("[DEBUG] create_app: after FastAPI init")
 
         print("[DEBUG] create_app: before health endpoint")
         @app.get("/health")

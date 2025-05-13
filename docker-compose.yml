@@ -13,7 +13,14 @@ services:
     volumes:
       - ~/.huggingface:/root/.huggingface:rw
       - ~/.cache/huggingface:/root/.cache/huggingface:rw
+      - ~/.agent_coder:/root/.agent_coder:rw
     restart: unless-stopped
+    environment:
+      - OPENAI_API_KEY
+      - ANTHROPIC_API_KEY
+      - GEMINI_API_KEY
+      - OPENROUTER_API_KEY
+      - HF_TOKEN
     deploy:
       resources:
         reservations:

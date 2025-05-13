@@ -115,6 +115,39 @@ def fetch_veniceai_models():
         print(f"Error fetching VeniceAI models: {e}", file=sys.stderr)
         return []
 
+def fetch_openai_models():
+    """
+    Fetches real models from OpenAI using the OpenAI API.
+    Returns a list of model dicts compatible with the registry schema.
+    """
+    import openai
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("OPENAI_API_KEY not set.", file=sys.stderr)
+        return []
+    openai.api_key = api_key
+    try:
+        response = openai.models.list()
+        models = []
+        # The response is a SyncPage or list-like object of Model objects
+        for m in response:
+            models.append({
+                "id": getattr(m, "id", None),
+                "provider": "openai",
+                "location": "hosted",
+                "category": [],  # Could be filled based on your logic
+                "function_calling": False,  # OpenAI API does not specify this directly
+                "model_family": getattr(m, "object", "unknown"),
+                "traits": [],
+                "endpoint_url": None,
+                "file_path": None,
+                "metadata": {"description": getattr(m, "root", "")}
+            })
+        return models
+    except Exception as e:
+        print(f"Error fetching OpenAI models: {e}", file=sys.stderr)
+        return []
+
 if cache_backend == "redis":
     import asyncio
     import redis.asyncio as redis
@@ -252,18 +285,158 @@ def save_models(models, debug=False):
     if debug:
         print(f"Saved model recommendations to {out_path}")
 
+def fetch_anthropic_models():
+    """
+    Fetches real models from Anthropic API.
+    Returns a list of model dicts compatible with the registry schema.
+    """
+    import requests
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    base_url = os.getenv("ANTHROPIC_API_BASE", "https://api.anthropic.com/v1")
+    if not api_key:
+        print("ANTHROPIC_API_KEY not set.", file=sys.stderr)
+        return []
+    url = f"{base_url.rstrip('/')}/models"
+    headers = {
+        "x-api-key": api_key,
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01"
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"Failed to fetch Anthropic models: {response.status_code} {response.text}")
+            return []
+        data = response.json()
+        models = []
+        for m in data.get("models", []):
+            models.append({
+                "id": m.get("id"),
+                "provider": "anthropic",
+                "location": "hosted",
+                "category": m.get("categories", []),
+                "function_calling": m.get("supports_function_calling", False),
+                "model_family": m.get("family", "unknown"),
+                "traits": m.get("traits", []),
+                "endpoint_url": None,
+                "file_path": None,
+                "metadata": {"description": m.get("description", "")}
+            })
+        return models
+    except Exception as e:
+        print(f"Error fetching Anthropic models: {e}", file=sys.stderr)
+        return []
+
+def fetch_gemini_models():
+    """
+    Fetches real models from Google Gemini API.
+    Returns a list of model dicts compatible with the registry schema.
+    """
+    import requests
+    api_key = os.getenv("GEMINI_API_KEY")
+    base_url = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
+    if not api_key:
+        print("GEMINI_API_KEY not set.", file=sys.stderr)
+        return []
+    url = f"{base_url.rstrip('/')}/models"
+    params = {"key": api_key}
+    try:
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            print(f"Failed to fetch Gemini models: {response.status_code} {response.text}")
+            return []
+        data = response.json()
+        models = []
+        for m in data.get("models", []):
+            models.append({
+                "id": m.get("name"),
+                "provider": "google",
+                "location": "hosted",
+                "category": m.get("supported_generation_methods", []),
+                "function_calling": False,
+                "model_family": m.get("display_name", "unknown"),
+                "traits": [],
+                "endpoint_url": None,
+                "file_path": None,
+                "metadata": {"description": m.get("description", "")}
+            })
+        return models
+    except Exception as e:
+        print(f"Error fetching Gemini models: {e}", file=sys.stderr)
+        return []
+
+def fetch_veniceai_models():
+    """
+    Fetches real models from VeniceAI API.
+    Returns a list of model dicts compatible with the registry schema.
+    """
+    import requests
+    api_key = os.getenv("VENICEAI_API_KEY")
+    base_url = os.getenv("VENICEAI_API_BASE", "https://api.venice.ai/v1")
+    if not api_key:
+        print("VENICEAI_API_KEY not set.", file=sys.stderr)
+        return []
+    url = f"{base_url.rstrip('/')}/models"
+    headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"Failed to fetch VeniceAI models: {response.status_code} {response.text}")
+            return []
+        data = response.json()
+        models = []
+        for m in data.get("models", []):
+            models.append({
+                "id": m.get("id"),
+                "provider": "veniceai",
+                "location": "hosted",
+                "category": m.get("categories", []),
+                "function_calling": m.get("supports_function_calling", False),
+                "model_family": m.get("family", "unknown"),
+                "traits": m.get("traits", []),
+                "endpoint_url": None,
+                "file_path": None,
+                "metadata": {"description": m.get("description", "")}
+            })
+        return models
+    except Exception as e:
+        print(f"Error fetching VeniceAI models: {e}", file=sys.stderr)
+        return []
+
+def fetch_huggingface_models():
+    print("[WARN] Real HuggingFace model fetch not implemented. Skipping.", file=sys.stderr)
+    return []
+
+def fetch_openrouter_models():
+    print("[WARN] Real OpenRouter model fetch not implemented. Skipping.", file=sys.stderr)
+    return []
+
+def fetch_grok_models():
+    print("[WARN] Real Grok model fetch not implemented. Skipping.", file=sys.stderr)
+    return []
+
 def run_discovery(debug=False):
-    gpus = detect_gpus()
     all_models = []
-    for category in CATEGORIES:
-        cat_models = query_llm_for_category(gpus, category, debug)
-        if isinstance(cat_models, list):
-            all_models.extend(cat_models)
-        else:
-            # Defensive: if LLM returns a dict or other type
-            all_models.append(cat_models)
-    save_models(all_models, debug)
+    # Fetch real models from all supported providers (no try/except wrappers, always attempt all)
+    for fetch_fn in [fetch_openai_models, fetch_veniceai_models, fetch_anthropic_models, fetch_gemini_models, fetch_huggingface_models, fetch_openrouter_models, fetch_grok_models]:
+        try:
+            models = fetch_fn()
+            if models:
+                all_models.extend(models)
+        except Exception as e:
+            if debug:
+                print(f"[DEBUG] Error in {fetch_fn.__name__}: {e}", file=sys.stderr)
+    # Always overwrite with only real models
+    out_path = os.path.expanduser("~/.agent_coder/model_recommendations.json")
+    if not all_models:
+        with open(out_path, "w") as f:
+            json.dump([], f)
+        if debug:
+            print("[DEBUG] No real models found, wrote empty list to model_recommendations.json")
+    else:
+        save_models(all_models, debug)
     return all_models
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

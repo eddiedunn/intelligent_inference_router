@@ -16,10 +16,11 @@ class Settings(BaseSettings):
     IIR_API_KEY: str = Field(..., json_schema_extra={"env": "IIR_API_KEY"})
     ROUTER_LOG_FULL_CONTENT: bool = Field(default=False)
     REMOTE_LOG_SINK: str = Field(default=None)
-    HF_TOKEN: str = Field(default=None)
-    # Optionally include these if needed in codebase:
-    # OPENAI_API_KEY: str = Field(default=None)
-    # ANTHROPIC_API_KEY: str = Field(default=None)
+    HF_TOKEN: str = Field(..., env="HF_TOKEN")
+    openai_api_key: str = Field(default=None, env="OPENAI_API_KEY")
+    anthropic_api_key: str = Field(default=None, env="ANTHROPIC_API_KEY")
+    gemini_api_key: str = Field(default=None, env="GEMINI_API_KEY")
+    openrouter_api_key: str = Field(default=None, env="OPENROUTER_API_KEY")
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
     @classmethod

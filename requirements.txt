@@ -17,3 +17,11 @@ pytest
 pytest-timeout
 git+https://github.com/eddiedunn/logflow.git@main#egg=logflow
 asgi-lifespan>=2.1.0
+
+# Provider clients
+openai>=1.0.0
+anthropic>=0.25.0
+# Gemini (Google Generative AI)
+google-generativeai>=0.3.0
+# OpenRouter (use httpx or requests if no official client)
+# Grok (use httpx or requests if no official client)

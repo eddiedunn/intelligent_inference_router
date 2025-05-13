@@ -7,6 +7,7 @@ from .base import ProviderClient, ProviderResponse
 class OpenAIClient(ProviderClient):
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY")
+        print("[DEBUG] OpenAIClient api_key =", self.api_key)
         self.base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
