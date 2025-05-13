@@ -400,14 +400,14 @@ def create_app(metrics_registry=None):
 
         @app.get("/v1/models")
         async def get_models(api_key=Depends(api_key_auth)):
-            # Return available models from registry in OpenAI-compatible format
-            models = list_models()["data"]
-            # OpenAI format: [{"id": ..., "object": "model", "owned_by": <provider>, ...}]
+            # Fetch live OpenAI models only (no cache or recommendations)
+            from router.refresh_models import fetch_openai_models
+            models = fetch_openai_models()
             data = [
                 {
-                    "id": f"{m['provider']}/{m['id']}",
+                    "id": f"openai/{m['id']}",
                     "object": "model",
-                    "owned_by": m["provider"],
+                    "owned_by": "openai",
                     "permission": [],
                     # Optionally include extra metadata fields here
                 }
@@ -511,4 +511,23 @@ import secrets
 from router.apikey_db import add_api_key
 
 # For ASGI/uvicorn compatibility
+# --- API Key DB Sync on Startup ---
+import os
+from router.apikey_db import add_api_key, get_api_key
+
+def ensure_env_apikey_in_db():
+    api_key = os.environ.get("IIR_API_KEY")
+    if api_key:
+        db_row = get_api_key(api_key)
+        if not db_row:
+            # Insert with a generic IP and description
+            add_api_key(api_key, created_ip="startup", description="env auto-import", priority=0)
+            print(f"[INFO] Inserted IIR_API_KEY from .env into DB: {api_key}")
+        else:
+            print("[INFO] IIR_API_KEY from .env already present in DB.")
+    else:
+        print("[WARNING] No IIR_API_KEY found in environment. API may not be accessible.")
+
+ensure_env_apikey_in_db()
+
 app = create_app()

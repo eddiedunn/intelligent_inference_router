@@ -8,3 +8,29 @@ rate_limit_rpm: 1000
 max_request_tokens: 8192
 REDIS_URL: "redis://iir-redis:6379/0"
 # provider_priority and external_providers for future phases
+
+providers:
+  openai:
+    url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+  anthropic:
+    url: https://api.anthropic.com/v1
+    api_key: ${ANTHROPIC_API_KEY}
+  gemini:
+    url: https://generativelanguage.googleapis.com/v1beta
+    api_key: ${GEMINI_API_KEY}
+  openrouter:
+    url: https://openrouter.ai/api/v1
+    api_key: ${OPENROUTER_API_KEY}
+  vllm:
+    url: http://vllm:8000/v1
+
+routing:
+  model_prefix_map:
+    openai/: openai
+    anthropic/: anthropic
+    gemini/: gemini
+    openrouter/: openrouter
+    meta-llama/: vllm
+    meta-llama/Meta-Llama-3-8B-Instruct: vllm
+  default: openai

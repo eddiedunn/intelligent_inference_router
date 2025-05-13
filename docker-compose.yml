@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.router
+      args:
+        USER_ID: 1001
     env_file:
       - .env
     ports:
@@ -14,6 +16,7 @@ services:
       - ~/.huggingface:/root/.huggingface:rw
       - ~/.cache/huggingface:/root/.cache/huggingface:rw
       - ~/.agent_coder:/root/.agent_coder:rw
+      - ./persistent-data/:/app/persistent-data
     restart: unless-stopped
     environment:
       - OPENAI_API_KEY

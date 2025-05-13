@@ -11,4 +11,11 @@ COPY tests/ ./tests/
 COPY start_server.sh /start_server.sh
 RUN chmod +x /start_server.sh
 COPY .env ./
+
+# --- Rootless configuration ---
+# Allow setting UID to match host user for volume permissions
+ARG USER_ID=1001
+RUN useradd -m -u $USER_ID appuser && chown -R $USER_ID:$USER_ID /app
+USER appuser
+
 ENTRYPOINT ["/start_server.sh"]

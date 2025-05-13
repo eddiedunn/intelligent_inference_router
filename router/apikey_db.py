@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import threading
 
-DB_PATH = Path(__file__).parent.parent / "api_keys.sqlite3"
+DB_PATH = Path(__file__).parent.parent / "persistent-data" / "api_keys.sqlite3"
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS api_keys (
