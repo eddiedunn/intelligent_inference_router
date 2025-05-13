@@ -8,6 +8,9 @@
 ## What Works
 - Project memory initialized (projectbrief, productContext, activeContext, systemPatterns, techContext)
 - .windsurfrules created for project intelligence
+- Real LLM API calls working in `/v1/chat/completions` endpoint
+- Provider client registry and routing logic validated
+- 400/502 error handling robust
 
 ## What's Left to Build
 - Scaffold codebase and documentation directories

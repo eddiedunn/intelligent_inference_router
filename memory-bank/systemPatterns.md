@@ -18,6 +18,7 @@
 ## Design Patterns
 - Dependency injection for config, cache, and classifier
 - Provider interface for model backends (local/external)
+- Provider client registry pattern: `PROVIDER_CLIENTS` holds singleton client instances, and all routing uses these for API calls. `select_provider` must return the client instance, not the config dict.
 - Middleware for auth, rate limiting, logging
 - Error handling via standardized JSON responses
 

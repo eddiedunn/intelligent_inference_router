@@ -7,8 +7,11 @@
 > - `docs/MONITORING.md`
 
 ## Current Focus
-- Debugging and stabilizing Redis connectivity for test suite and FastAPILimiter integration
-- Ensuring all FastAPILimiter-dependent tests run and pass using a single Redis instance for the suite
+- Integrated real external LLM API calls into `/v1/chat/completions` endpoint (OpenAI, Anthropic, etc.)
+- Debugged and resolved 400 and 502 errors in provider routing
+- Fixed provider client registry bug (select_provider returned config dict, not client instance)
+- Ensured robust error handling and proper test coverage for 400/502 scenarios
+- Docker container rebuild and test cycle validated
 - Decoupling ml_ops: all references, submodules, and dependencies removed from IIR project (2025-04-24)
 
 ## Recent Changes

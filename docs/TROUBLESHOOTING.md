@@ -10,6 +10,7 @@
 ## Common Issues
 - **Docker fails to build:** Check NVIDIA drivers, toolkit, and Docker versions
 - **vLLM not starting:** Check model ID, GPU availability, and logs
+- **502: 'dict' object has no attribute 'chat_completions':** This means the provider router returned a config dict, not a client instance. Fix: ensure `select_provider` returns the client instance from `PROVIDER_CLIENTS`.
 - **Redis connection errors:** Verify Redis service is running and `REDIS_URL` is correct
 - **API returns 401/403:** Confirm API key in `.env` and request headers
 - **Rate limiting (429):** Increase `rate_limit_rpm` in config if needed

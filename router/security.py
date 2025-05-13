@@ -11,6 +11,7 @@ def get_key_from_request(request: Request):
 from router.apikey_db import get_api_key
 
 async def api_key_auth(request: Request):
+    print("[DEBUG] ENTERED api_key_auth")
     API_KEY = os.environ.get("IIR_API_KEY")
     ALLOWED_KEYS = set(os.environ.get("IIR_ALLOWED_KEYS", "").split(","))
     key = get_key_from_request(request)

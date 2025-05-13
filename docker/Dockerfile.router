@@ -5,7 +5,6 @@ COPY requirements.txt ./
 RUN apt-get update && apt-get install -y git sqlite3 && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.txt
 COPY router/ ./router/
-COPY memory-bank/ ./memory-bank/
 COPY config.defaults.yaml ./
 COPY tests/ ./tests/
 COPY start_server.sh /start_server.sh

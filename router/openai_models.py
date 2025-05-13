@@ -31,6 +31,9 @@ class ToolDef(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
+
+    class Config:
+        extra = "forbid"
     functions: Optional[List[FunctionDef]] = None
     tools: Optional[List[ToolDef]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None

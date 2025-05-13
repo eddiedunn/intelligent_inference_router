@@ -6,6 +6,7 @@ import hashlib
 import logging
 from .cache import get_cache, SimpleCache
 import asyncio
+from router.provider_clients import PROVIDER_CLIENTS
 
 class ProviderRouter:
     def __init__(self, config: dict, cache_backend, cache_type: str):
@@ -22,26 +23,22 @@ class ProviderRouter:
         payload: Dict[str, Any],
         user_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, Dict[str, str], str]:
+    ) -> Tuple[str, Any, str]:
         """
         Decide which provider to use based on payload, user, and context.
-        Returns (provider_url, headers, provider_name)
+        Returns (provider_name, provider_client, model)
         """
         model = payload.get("model", "")
         # Prefix-based routing
         for prefix, provider_name in self.routing.get("model_prefix_map", {}).items():
             if model.startswith(prefix):
-                provider = self.providers.get(provider_name)
                 break
         else:
             provider_name = self.routing.get("default", "openai")
-            provider = self.providers.get(provider_name)
-        if not provider:
-            raise Exception(f"No provider found for model {model}")
-        url = provider["url"]
-        api_key = provider.get("api_key")
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        return url, headers, provider_name
+        if provider_name not in PROVIDER_CLIENTS:
+            raise Exception(f"No provider client found for: {provider_name}")
+        provider_client = PROVIDER_CLIENTS[provider_name]
+        return provider_name, provider_client, model
 
     def cache_key(self, payload: Dict[str, Any]) -> str:
         # Hash the payload for cache key

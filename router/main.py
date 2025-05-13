@@ -1,4 +1,7 @@
 import os
+import builtins
+builtins.IIR_DEBUG_PROOF = "MAIN_LOADED"
+print("[DEBUG] main.py loaded (PROOF)")
 print("[DEBUG] Startup: IIR_API_KEY =", os.environ.get("IIR_API_KEY"))
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
@@ -15,13 +18,14 @@ from router.cache import get_cache, make_cache_key
 from router.classifier import classify_prompt
 from router.providers.local_vllm import generate_local
 from router.metrics import instrument_app, get_metrics
+from router.openai_models import ChatCompletionRequest
 import logging
 logger = logging.getLogger("router.main")
 import os
 import asyncio
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from router.log_udp_handler import UDPSocketHandler
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import yaml
 import os
 from typing import Optional, AsyncGenerator
@@ -200,8 +204,8 @@ def create_app(metrics_registry=None):
         print("[DEBUG] create_app: after /infer endpoint")
 
         # --- OpenAI-compatible proxy endpoints ---
-        from .openai_routes import router as openai_router, set_provider_router
-        app.include_router(openai_router)
+        # from .openai_routes import router as openai_router, set_provider_router
+        # app.include_router(openai_router)
 
 
         print("[DEBUG] create_app: before metrics setup")
@@ -241,16 +245,15 @@ def create_app(metrics_registry=None):
         @app.exception_handler(RequestValidationError)
         async def validation_exception_handler(request, exc):
             # If the cause is an HTTPException with status 429, propagate it as 429
-            # (FastAPI wraps dependency exceptions as RequestValidationError, but does not preserve the original status)
-            # We check for this by inspecting the request path and error details
             for err in exc.errors():
-                if err.get('msg') == 'Rate limit exceeded' or err.get('type') == 'value_error' and 'rate limit' in str(err.get('msg', '')).lower():
+                if err.get('msg') == 'Rate limit exceeded' or (err.get('type') == 'value_error' and 'rate limit' in str(err.get('msg', '')).lower()):
                     return JSONResponse(
                         status_code=429,
                         content={"detail": "Rate limit exceeded"}
                     )
+            # For all other validation errors, return a 400 with OpenAI-style error
             return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 content={
                     "error": {
                         "message": "Invalid request payload.",
@@ -259,144 +262,135 @@ def create_app(metrics_registry=None):
                         "code": "invalid_payload",
                         "details": exc.errors(),
                     }
-                },
+                }
             )
 
-        @app.exception_handler(HTTPException)
-        async def http_exception_handler(request, exc: HTTPException):
-            return JSONResponse(
-                status_code=exc.status_code,
-                content={"detail": exc.detail}
-            )
-
-        print("[DEBUG] create_app: before metrics setup")
-        metrics = get_metrics(registry=metrics_registry)
-        instrument_app(app, metrics=metrics)
-        print("[DEBUG] create_app: after metrics setup, before CORS")
-
-        # CORS (optional, for local dev)
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-        print("[DEBUG] create_app: after CORS setup")
-
-        # --- API Key Registration (Industry Standard: /api/v1/apikeys) ---
-
-        print("[DEBUG] REGISTERING /v1/chat/completions endpoint in create_app")
-        # OpenAI-compatible /v1/chat/completions endpoint
         @app.post("/v1/chat/completions")
-        async def chat_completions(request: Request, api_key=Depends(api_key_auth)):
-            print(f"[DEBUG] HANDLER ENTRY: /v1/chat/completions, request={request}")
-            await rate_limiter_dep(request)
+        async def chat_completions(request: Request, api_key=Depends(api_key_auth), rate_limit=Depends(RateLimiter(times=60, seconds=60))):
+            print("[DEBUG] ENTERED /v1/chat/completions")
             try:
-                body = await request.json()
-            except Exception:
-                return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
-
-            # --- SCRUB INCOMING REQUEST FOR SECRETS ---
-            scrubbed_body = hybrid_scrub_and_log(body, direction="incoming chat completion request")
-            if scrubbed_body != body:
-                print("[WARNING] Secret(s) detected and scrubbed from incoming inference request.")
-            body = scrubbed_body
-
-            model = body.get("model")
-            from router.providers import parse_provider_and_model
-            try:
-                provider, model_name = parse_provider_and_model(model)
+                # Enforce Content-Type
+                if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+                    print("[DEBUG] 400: Wrong Content-Type")
+                    raise RequestValidationError([{"loc": ("header",), "msg": "Content-Type must be application/json.", "type": "value_error"}])
+                # Enforce max body size (1MB)
+                content_length = request.headers.get("content-length")
+                if content_length is not None:
+                    try:
+                        if int(content_length) > 1048576:
+                            print("[DEBUG] 400: Content-Length too large")
+                            raise RequestValidationError([{"loc": ("body",), "msg": "Request body too large (max 1MB).", "type": "value_error"}])
+                    except Exception:
+                        pass
+                raw_body = await request.body()
+                print(f"[DEBUG] raw_body length: {len(raw_body)}")
+                if len(raw_body) > 1048576:
+                    print("[DEBUG] 400: Actual body too large")
+                    raise RequestValidationError([{"loc": ("body",), "msg": "Request body too large (max 1MB).", "type": "value_error"}])
+                # Accept all forms of empty or meaningless bodies
+                if not raw_body or raw_body.strip() in (b'', b'null', b'{}', '{}', 'null'):
+                    print("[DEBUG] 400: Empty or missing request body (manual check)")
+                    raise RequestValidationError([{"loc": ("body",), "msg": "Missing request body.", "type": "value_error"}])
+                try:
+                    data = await request.json()
+                    print(f"[DEBUG] Parsed JSON: {type(data)}")
+                    if not isinstance(data, dict) or not data:
+                        print("[DEBUG] 400: JSON not a non-empty object")
+                        raise ValueError("JSON body is not a non-empty object")
+                except Exception as e:
+                    print(f"[DEBUG] 400: Invalid JSON or not a dict: {e}")
+                    raise RequestValidationError([{"loc": ("body",), "msg": "Invalid JSON.", "type": "value_error"}])
+                try:
+                    req = ChatCompletionRequest(**data)
+                except ValidationError as ve:
+                    print(f"[DEBUG] 400: Pydantic validation error: {ve.errors()}")
+                    raise RequestValidationError(ve.errors())
+                print("[DEBUG] /v1/chat/completions entered (robust validation)")
+                # Convert request to payload dict
+                payload = req.model_dump(exclude_unset=True)
+                payload.pop("mcp", None)
+                user_id = payload.get("user")
+                provider_router = request.app.state.provider_router
+                try:
+                    provider_name, provider_client, model = provider_router.select_provider(payload, user_id)
+                except Exception as e:
+                    print(f"[DEBUG] Provider selection failed: {e}")
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": {
+                                "message": f"Provider selection failed: {e}",
+                                "type": "invalid_request_error",
+                                "param": None,
+                                "code": "invalid_provider",
+                                "details": str(e),
+                            }
+                        }
+                    )
+                print(f"[DEBUG] Routing to provider: {provider_name}")
+                try:
+                    result = await provider_client.chat_completions(payload, model)
+                    provider_router.record_usage(provider_name, user_id, tokens=0)
+                    print("[DEBUG] Returning provider response", result.status_code)
+                    return JSONResponse(content=result.content, status_code=result.status_code)
+                except Exception as e:
+                    print(f"[DEBUG] Provider call failed: {e}")
+                    return JSONResponse(
+                        status_code=502,
+                        content={
+                            "error": {
+                                "message": f"Provider call failed: {e}",
+                                "type": "provider_error",
+                                "param": None,
+                                "code": "provider_error",
+                                "details": str(e),
+                            }
+                        }
+                    )
+            except RequestValidationError as ve:
+                print(f"[DEBUG] Caught RequestValidationError: {ve.errors()}")
+                raise
             except Exception as e:
-                return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error", "param": "model", "code": "invalid_model_name"}})
+                print(f"[DEBUG] UNEXPECTED EXCEPTION: {e}")
+                if isinstance(e, ValidationError):
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": {
+                                "message": "Invalid request payload.",
+                                "type": "invalid_request_error",
+                                "param": None,
+                                "code": "invalid_payload",
+                                "details": e.errors() if hasattr(e, 'errors') else str(e),
+                            }
+                        }
+                    )
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": {
+                            "message": "Invalid request payload.",
+                            "type": "invalid_request_error",
+                            "param": None,
+                            "code": "invalid_payload",
+                            "details": str(e),
+                        }
+                    }
+                )
 
-            from router.provider_clients import PROVIDER_CLIENTS
-            client_obj = PROVIDER_CLIENTS.get(provider)
-            if not client_obj:
-                return JSONResponse(status_code=400, content={"error": {"message": f"Unknown or unconfigured provider: {provider}", "type": "invalid_request_error", "param": "model", "code": "unknown_provider"}})
+            # Should never reach here
+            print("[DEBUG] REACHED END OF ENDPOINT (unexpected)")
+            return JSONResponse({"detail": "Internal error"}, status_code=500)
 
-            # Pass model_name to the client
-            try:
-                result = await client_obj.chat_completions(body, model_name)
-                return JSONResponse(content=result.content, status_code=result.status_code)
-            except Exception as e:
-                print(f"[DEBUG] Exception in provider call: {e}")
-                return JSONResponse(status_code=502, content={"error": {"message": f"Provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
+        @app.post("/v1/test/raise_validation")
+        async def test_raise_validation():
+            print("[DEBUG] /v1/test/raise_validation called")
+            raise RequestValidationError([{"loc": ("body",), "msg": "Manual test error.", "type": "value_error"}])
 
-        @app.post("/v1/completions")
-        async def completions(request: Request, api_key=Depends(api_key_auth)):
-            print(f"[DEBUG] HANDLER ENTRY: /v1/completions, request={request}")
-            await rate_limiter_dep(request)
-            try:
-                body = await request.json()
-            except Exception:
-                return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON payload.", "type": "invalid_request_error", "param": None, "code": "invalid_payload"}})
-
-            # --- SCRUB INCOMING REQUEST FOR SECRETS ---
-            scrubbed_body = hybrid_scrub_and_log(body, direction="incoming completions request")
-            if scrubbed_body != body:
-                print("[WARNING] Secret(s) detected and scrubbed from incoming inference request.")
-            body = scrubbed_body
-
-            model = body.get("model")
-            from router.providers import parse_provider_and_model
-            try:
-                provider, model_name = parse_provider_and_model(model)
-            except Exception as e:
-                return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error", "param": "model", "code": "invalid_model_name"}})
-
-            from router.provider_clients import PROVIDER_CLIENTS
-            client_obj = PROVIDER_CLIENTS.get(provider)
-            if not client_obj:
-                return JSONResponse(status_code=400, content={"error": {"message": f"Unknown or unconfigured provider: {provider}", "type": "invalid_request_error", "param": "model", "code": "unknown_provider"}})
-
-            # Pass model_name to the client
-            try:
-                result = await client_obj.completions(body, model_name)
-                return JSONResponse(content=result.content, status_code=result.status_code)
-            except Exception as e:
-                print(f"[DEBUG] Exception in provider call: {e}")
-                return JSONResponse(status_code=502, content={"error": {"message": f"Provider error: {str(e)}", "type": "server_error", "param": None, "code": None}})
-
-        # Simple in-memory job store (replace with persistent store in production)
-        ASYNC_JOB_STORE: Dict[str, Dict] = {}
-
-        @app.post("/v1/async/chat/completions")
-        async def submit_async_chat_completion(request: Request, background_tasks: BackgroundTasks):
-            try:
-                body = await request.json()
-            except Exception:
-                return JSONResponse(status_code=400, content={"detail": "Invalid JSON body."})
-            # HYBRID SCRUB INCOMING REQUEST
-            body = hybrid_scrub_and_log(body, direction="incoming async chat completion request")
-            model = body.get("model")
-            messages = body.get("messages")
-            from router.providers import parse_provider_and_model
-            try:
-                provider, model_name = parse_provider_and_model(model)
-            except Exception as e:
-                return JSONResponse(status_code=400, content={"detail": str(e)})
-            if not model or not messages:
-                return JSONResponse(status_code=400, content={"detail": "Missing required fields: model or messages"})
-            job_id = str(uuid.uuid4())
-            ASYNC_JOB_STORE[job_id] = {"status": "pending", "result": None}
-            async def run_job():
-                await asyncio.sleep(1)  # Simulate async work
-                # HYBRID SCRUB OUTGOING RESPONSE
-                ASYNC_JOB_STORE[job_id]["status"] = "complete"
-                result = {"id": job_id, "object": "chat.completion", "choices": [{"message": {"content": "Hello from async!"}}]}
-                ASYNC_JOB_STORE[job_id]["result"] = hybrid_scrub_and_log(result, direction="outgoing async chat completion response")
-            background_tasks.add_task(run_job)
-            return {"job_id": job_id, "status": "pending"}
-
-        @app.get("/v1/async/chat/completions/{job_id}")
-        async def poll_async_chat_completion(job_id: str):
-            job = ASYNC_JOB_STORE.get(job_id)
-            if not job:
-                return JSONResponse(status_code=404, content={"detail": "Job not found"})
-            if job["status"] != "complete":
-                return {"job_id": job_id, "status": job["status"]}
-            return job["result"]
+        @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+        async def catch_all(request: Request, path_name: str):
+            print(f"[DEBUG] CATCH-ALL: {request.method} {request.url.path}")
+            return JSONResponse({"detail": "catch-all", "path": path_name}, status_code=404)
 
         @app.get("/v1/models")
         async def get_models(api_key=Depends(api_key_auth)):
