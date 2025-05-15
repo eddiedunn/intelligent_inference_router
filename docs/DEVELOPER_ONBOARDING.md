@@ -1,4 +1,44 @@
-# Developer Onboarding Guide: Intelligent Inference Router (IIR)
+# Developer Onboarding
+
+## Testing Strategy: Unit vs Integration
+
+### Unit Tests (FastAPI TestClient)
+- Unit tests use FastAPI's `TestClient` to run the app in-process, without starting a real HTTP server.
+- Use these for endpoint validation, input/output checks, and logic that does not require real network calls.
+- Example usage:
+  ```python
+  from fastapi.testclient import TestClient
+  from router.main import create_app
+  client = TestClient(create_app())
+  def test_health():
+      r = client.get("/health")
+      assert r.status_code == 200
+  ```
+
+### Integration Tests (Real HTTP API)
+- Integration tests spin up the actual API server (and/or model registry) on a random port using pytest fixtures.
+- Use these for tests that:
+  - Use `requests`/`httpx` to make real HTTP calls
+  - Need to test startup/shutdown hooks, background tasks, or cross-service communication
+- Fixtures:
+  - `main_api_server`: starts the main API and sets `IIR_API_URL`
+  - `model_registry_server`: starts the model registry and sets `MODEL_REGISTRY_URL`
+- Example usage:
+  ```python
+  import os, requests
+  def test_registry_refresh(main_api_server):
+      api_url = os.environ["IIR_API_URL"]
+      r = requests.post(f"{api_url}/v1/registry/refresh")
+      assert r.status_code == 200
+  ```
+- Always use the dynamic URLs from environment variables, never hardcode ports.
+
+### Best Practices
+- Use `TestClient` for fast, isolated unit tests.
+- Use the provided fixtures for integration/E2E tests that require real HTTP/network.
+- Ensure all new integration tests depend on the appropriate fixture and use dynamic URLs.
+- All test servers are started on random ports and cleaned up automatically—no port conflicts or orphaned processes.
+ Guide: Intelligent Inference Router (IIR)
 
 > **Documentation Map:**
 > - **Setup Guide:** Basic installation & running the stack (see `SETUP.md`).

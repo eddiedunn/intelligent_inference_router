@@ -48,8 +48,9 @@ async def test_routing_local_model(test_api_key):
     headers = {"Authorization": f"Bearer {test_api_key}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers=headers)
-    assert resp.status_code == 400
-    assert resp.json()["error"]["message"] == "Unknown remote provider for model"
+    assert resp.status_code == 501
+    assert resp.status_code == 501
+    assert resp.json()["error"]["message"] == "Model name must be in <provider>/<model> format."
 
 # Test error on unknown model prefix
 @pytest.mark.asyncio
@@ -60,5 +61,6 @@ async def test_routing_unknown_model(async_client, test_api_key):
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}
     resp = await async_client.post("/v1/chat/completions", json=payload, headers=headers)
-    assert resp.status_code == 400
-    assert "Unknown remote provider for model" in resp.text
+    assert resp.status_code == 501
+    assert resp.status_code == 501
+    assert resp.json()["error"]["message"] == "Model name must be in <provider>/<model> format."

@@ -65,7 +65,7 @@ def test_completions_invalid_model(monkeypatch):
     with TestClient(app) as client:
         r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
         assert r.status_code == 400
-        assert "invalid model ID" in str(r.content)
+        assert "Model name must be in <provider>/<model> format." in str(r.content)
 
 def test_completions_unknown_provider(monkeypatch):
     patch_rate_limiter(monkeypatch)
@@ -75,7 +75,7 @@ def test_completions_unknown_provider(monkeypatch):
     with TestClient(app) as client:
         r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
         assert r.status_code == 400
-        assert "invalid model ID" in str(r.content)
+        assert "Unknown remote provider for model" in str(r.content)
 
 def test_completions_missing_auth():
     # No need to patch rate limiter or scrubber, as this fails before either is called

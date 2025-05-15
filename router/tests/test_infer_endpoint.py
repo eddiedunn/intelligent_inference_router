@@ -66,7 +66,7 @@ def test_infer_invalid_model(monkeypatch):
     r = client.post("/infer", headers=auth_header(), json=payload)
     assert r.status_code == 400
     # Accept either custom or generic error message
-    assert ("Invalid model string" in r.text) or ("Invalid request payload" in r.text)
+    assert ('Model name must be in <provider>/<model> format.' in r.text) or ("Invalid request payload" in r.text)
 
 def test_infer_unknown_provider(monkeypatch):
     import httpx
@@ -79,7 +79,7 @@ def test_infer_unknown_provider(monkeypatch):
     r = client.post("/infer", headers=auth_header(), json=payload)
     # Accept both 400 and 404, and check for expected error text
     assert r.status_code in (400, 404)
-    assert ("Model not found" in r.text) or ("Invalid request payload" in r.text)
+    assert ('Unknown remote provider for model' in r.text) or ("Invalid request payload" in r.text)
 
 def test_infer_missing_auth():
     from unittest.mock import patch

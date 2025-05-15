@@ -1,14 +1,20 @@
 import os
 import uuid
 import builtins
+from router.error_response import ErrorResponse, ErrorDetail
 builtins.IIR_DEBUG_PROOF = "MAIN_LOADED"
 print("[DEBUG] main.py loaded (PROOF)")
+from router.validation_utils import validate_model_and_messages
 print("[DEBUG] Startup: IIR_API_KEY =", os.environ.get("IIR_API_KEY"))
 from typing import Dict
 from fastapi import FastAPI, Request, Response, status, Depends, Body, HTTPException, BackgroundTasks
 from fastapi.exception_handlers import RequestValidationError
-from router.error_response import ErrorResponse, ErrorDetail
+from fastapi.exceptions import RequestValidationError as FastAPIRequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import JSONResponse as StarletteJSONResponse
 from fastapi.responses import JSONResponse, StreamingResponse
+import json
+from json.decoder import JSONDecodeError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_limiter.depends import RateLimiter
 print("[DEBUG] RateLimiter id in main:", id(RateLimiter))
@@ -107,6 +113,54 @@ async def rate_limiter_dep(request: Request):
 
 # --- App Factory for Testability ---
 def create_app(metrics_registry=None):
+    from fastapi import FastAPI
+    app = FastAPI()
+
+    # --- Unified error handler for JSON decode errors ---
+    @app.exception_handler(FastAPIRequestValidationError)
+    async def validation_exception_handler(request, exc):
+        # This is called for invalid JSON, missing fields, etc.
+        # Only handle JSON decode errors here
+        if hasattr(exc, 'errors') and exc.errors():
+            for err in exc.errors():
+                if err.get('type') == 'value_error.jsondecode':
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}
+                    )
+        # Fallback to default
+        return await RequestValidationError(request, exc)
+
+    # --- Unified error handler for HTTP 429 (rate limit) ---
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request, exc):
+        if exc.status_code == 429:
+            return JSONResponse(
+                status_code=429,
+                content={"error": {"type": "rate_limit_error", "code": "rate_limit_exceeded", "message": "Rate limit exceeded"}}
+            )
+        raise exc
+
+    # --- Unified error handler for Starlette HTTP 429 ---
+    @app.exception_handler(StarletteHTTPException)
+    async def starlette_http_exception_handler(request, exc):
+        if exc.status_code == 429:
+            return StarletteJSONResponse(
+                status_code=429,
+                content={"error": {"type": "rate_limit_error", "code": "rate_limit_exceeded", "message": "Rate limit exceeded"}}
+            )
+        raise exc
+
+    # --- Unified error handler for JSONDecodeError (raw) ---
+    @app.exception_handler(JSONDecodeError)
+    async def json_decode_error_handler(request, exc):
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}
+        )
+
+    # Continue with normal app creation below...
+
     print("[DEBUG] >>>>> ENTERING create_app <<<<<", flush=True)
     try:
         print("[DEBUG] create_app: before configure_udp_logging")
@@ -195,40 +249,42 @@ def create_app(metrics_registry=None):
         print("[DEBUG] create_app: before /infer endpoint")
         print("[DEBUG] create_app: before /infer endpoint")
         @app.post("/infer", dependencies=[Depends(api_key_auth), Depends(rate_limiter_dep)])
-        async def infer(infer_request: InferRequest = Body(...)):
-            import sys
+        async def infer(request: Request):
             import httpx
-            print("[DEBUG] /infer: Received infer_request:", infer_request, file=sys.stderr)
-            safe_req = hybrid_scrub_and_log(infer_request.model_dump(), direction="incoming /infer request")
-            # Validate model format
-            requested_model = safe_req.get('model', '')
-            if not requested_model or '/' not in requested_model or len(requested_model.split('/')) != 2:
-                return validation_error_response(
-                    message="Model name must be in <provider>/<model> format.",
-                    code="invalid_payload",
-                    status_code=400
-                )
+            from pydantic import ValidationError
+            # Step 1: Parse raw JSON and validate error contract
+            try:
+                raw = await request.body()
+                payload = json.loads(raw)
+            except Exception:
+                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}, status_code=400)
             from router.model_registry import list_models
+            validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=False)
+            import logging
+            logger = logging.getLogger("iir.endpoint")
+            logger.debug(f"Validation result: {validation_result}")
+            if validation_result == "unknown_provider":
+                logger.debug("Returning 501 for unknown provider")
+                return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=501)
+            if validation_result:
+                status = getattr(validation_result, 'status_code', None)
+                logger.debug(f"Returning error response with status {status}")
+                return validation_result
+            # Step 2: Pydantic validation for business logic and docs
+            try:
+                req_obj = InferRequest(**payload)
+            except ValidationError as e:
+                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}} , status_code=400)
+            # At this point, model format and existence are guaranteed valid, and Pydantic validation passed.
+            requested_model = payload.get('model', '')
             models = list_models().get('data', [])
             model_entry = next((m for m in models if m['id'] == requested_model or m.get('endpoint_url') == requested_model), None)
-            if not model_entry:
-                return validation_error_response(
-                    message="Unknown remote provider for model.",
-                    code="unknown_provider",
-                    status_code=400
-                )
             service_url = model_entry.get('endpoint_url')
-            if not service_url:
-                return validation_error_response(
-                    message="Model found but has no endpoint_url in registry.",
-                    code="invalid_model",
-                    status_code=502
-                )
-            payload = {"input": safe_req['input']}
-            if safe_req.get('async_'):
-                payload["async"] = True
+            payload_out = {"input": payload['input']}
+            if payload.get('async_'):
+                payload_out["async"] = True
             try:
-                resp = httpx.post(f"{service_url}/infer", json=payload)
+                resp = httpx.post(f"{service_url}/infer", json=payload_out)
                 safe_content = hybrid_scrub_and_log(resp.json(), direction="outgoing /infer response")
                 return JSONResponse(content=safe_content, status_code=resp.status_code)
             except Exception as e:
@@ -328,7 +384,6 @@ def create_app(metrics_registry=None):
 
         def upstream_error_response(message):
             return error_response(502, "upstream_error", "remote_provider_error", message)
-
         def internal_error_response():
             return error_response(502, "internal_error", "internal_server_error", "An unexpected error occurred.")
 
@@ -357,36 +412,18 @@ def create_app(metrics_registry=None):
                         )
                 except Exception:
                     pass
-            raw_body = await request.body()
-            print(f"[DEBUG] raw_body length: {len(raw_body)}")
-            if len(raw_body) > 1048576:
-                print("[DEBUG] 413: Actual body too large")
-                return validation_error_response(
-                    message="Request body too large (max 1MB).",
-                    code="request_too_large",
-                    status_code=413
-                )
-            import json
             try:
-                payload = json.loads(raw_body)
+                raw = await request.body()
+                payload = json.loads(raw)
             except Exception:
                 return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}, status_code=400)
-
-            # Strict validation order
-            model = payload.get("model", "")
-            # Any missing or malformed model field (not a string, wrong number of slashes, etc)
-            if not model or not isinstance(model, str) or model.count('/') != 1:
-                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Model name must be in <provider>/<model> format."}}, status_code=400)
-            messages = payload.get("messages", None)
-            if messages is None or not isinstance(messages, list):
-                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Missing or invalid messages field"}}, status_code=400)
-            if len(messages) > 1000:
-                return JSONResponse({"error": {"type": "validation_error", "code": "token_limit_exceeded", "message": "Token limit exceeded"}}, status_code=413)
             from router.model_registry import list_models
-            models = list_models().get('data', [])
-            model_entry = next((m for m in models if m['id'] == model or m.get('endpoint_url') == model), None)
-            if not model_entry:
-                return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=400)
+            validation_error = validate_model_and_messages(payload, list_models_func=list_models, require_messages=True)
+            if validation_error:
+                # Propagate correct status code and message from validation utility
+                return validation_error
+            model = payload.get("model", None)
+            messages = payload.get("messages", None)
             try:
                 from router.classifier import classify_prompt
                 try:
@@ -394,6 +431,7 @@ def create_app(metrics_registry=None):
                 except Exception as e:
                     return JSONResponse({"error": {"type": "service_unavailable", "code": "classifier_error", "message": str(e)}}, status_code=503)
                 if classify_result == "remote":
+                    # Unified error schema for remote/unsupported models
                     return JSONResponse({"error": {"type": "not_implemented", "code": "not_implemented", "message": "Remote model routing not implemented in test stub."}}, status_code=501)
             except Exception as e:
                 return JSONResponse({"error": {"type": "internal_error", "code": "internal_error", "message": str(e)}}, status_code=500)
@@ -573,6 +611,7 @@ def ensure_env_apikey_in_db():
 ensure_env_apikey_in_db()
 
 # app = create_app()  # Commented out to avoid duplicate app instantiation during tests
+
 
 import os
 if os.environ.get("IIR_UVICORN_APP", "") == "1":

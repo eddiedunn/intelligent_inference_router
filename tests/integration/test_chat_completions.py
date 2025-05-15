@@ -10,20 +10,22 @@ client = TestClient(app)
 def auth_header():
     return {"Authorization": "Bearer changeme"}
 
-def test_missing_fields(auth_header):
+def test_missing_fields(auth_header, model_registry_server):
     r = client.post("/v1/chat/completions", headers=auth_header, json={})
     assert r.status_code == 400
 
-def test_wrong_model(auth_header):
+def test_wrong_model(auth_header, model_registry_server):
     r = client.post("/v1/chat/completions", headers=auth_header, json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}]})
     assert r.status_code == 501
 
-def test_token_limit(auth_header):
+def test_token_limit(auth_header, model_registry_server):
     long_prompt = "a" * 40000
     r = client.post("/v1/chat/completions", headers=auth_header, json={"model": "meta-llama/Meta-Llama-3-8B-Instruct", "messages": [{"role": "user", "content": long_prompt}]})
     assert r.status_code == 413
+    assert r.json()["error"]["code"] == "token_limit_exceeded"
+    assert "Token limit exceeded" in r.json()["error"]["message"]
 
-def test_remote_path(auth_header, monkeypatch):
+def test_remote_path(auth_header, monkeypatch, model_registry_server):
     # Simulate classifier returning 'remote'
     async def fake_classify_prompt(prompt):
         return "remote"
@@ -31,7 +33,7 @@ def test_remote_path(auth_header, monkeypatch):
     r = client.post("/v1/chat/completions", headers=auth_header, json={"model": "meta-llama/Meta-Llama-3-8B-Instruct", "messages": [{"role": "user", "content": "test"}]})
     assert r.status_code == 501
 
-def test_classifier_error(auth_header, monkeypatch):
+def test_classifier_error(auth_header, monkeypatch, model_registry_server):
     async def raise_error(prompt):
         raise Exception("fail")
     monkeypatch.setattr("router.classifier.classify_prompt", raise_error)

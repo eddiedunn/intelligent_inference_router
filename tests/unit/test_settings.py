@@ -1,4 +1,5 @@
 from router.settings import get_settings
+import os
 
 def test_settings_load():
     s = get_settings()
