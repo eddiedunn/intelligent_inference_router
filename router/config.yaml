@@ -1,3 +1,17 @@
-services:
-  musicgen: http://localhost:3000
-  textgen: http://localhost:3001
+# Minimal config for Intelligent Inference Router tests
+# DEPRECATED: API keys are now managed exclusively in persistent-data/api_keys.sqlite3 via router/apikey_db.py.
+# This section is ignored by the application and is present only for legacy/test compatibility.
+# Do not add or manage API keys here.
+api_keys:
+  - "example-key"
+providers:
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+  anthropic:
+    api_key: "${ANTHROPIC_API_KEY}"
+  huggingface:
+    api_key: "${HUGGINGFACE_API_KEY}"
+  openrouter:
+    api_key: "${OPENROUTER_API_KEY}"
+  veniceai:
+    api_key: "${VENICEAI_API_KEY}"

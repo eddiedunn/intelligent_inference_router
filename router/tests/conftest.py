@@ -25,6 +25,19 @@ import pytest_asyncio
 
 print("[DEBUG] RateLimiter id in fixture:", id(RateLimiter))
 
+# --- Global robust rate limiter override for all tests except those explicitly marked ---
+# Usage: add @pytest.mark.no_rate_limit_mock to any test that should use the real limiter
+@pytest.fixture(autouse=True)
+def override_rate_limiter(request, monkeypatch):
+    if "no_rate_limit_mock" in request.keywords:
+        # Allow real rate limiting for tests that opt out
+        return
+    from router.main import rate_limiter_dep
+    from fastapi import Request
+    async def no_op_rate_limiter(request: Request):
+        pass
+    monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
+
 @pytest.fixture(scope="session")
 def test_api_key():
     return TEST_API_KEY
@@ -59,11 +72,13 @@ def client():
     from router.main import create_app
     app.dependency_overrides["RateLimiter"] = lambda: DummyRateLimiter()
     class PatchedTestClient(TestClient):
-        def request(self, *args, **kwargs):
+        def patched_request(self, *args, **kwargs):
             headers = kwargs.pop('headers', {}) or {}
             headers['X-Forwarded-For'] = secrets.token_hex(4) + '.test'
             kwargs['headers'] = headers
             return super().request(*args, **kwargs)
+        # Patch the method name
+        request = patched_request
     return PatchedTestClient(app)
 
 @pytest.fixture(scope="session")

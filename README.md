@@ -31,6 +31,8 @@ A containerized, OpenAI-compatible LLM inference gateway that intelligently rout
 
 ## Model Registry, Discovery & Hardware-Aware Recommendations
 
+The model registry database (usually ~/.agent_coder/models.db) is the ONLY source of truth for available models. Do NOT manually edit the database; use provided admin tools or scripts for all changes.
+
 - The router uses a dynamic model registry that supports multiple providers (local, OpenAI, Hugging Face, OpenRouter, Google Gemini/PaLM, etc.).
 - Hardware-aware model discovery can be triggered on demand to recommend the best models for your system (GPU/CPU detected automatically).
 - Model registry and discovery are **persisted** and only refreshed when explicitly requested.

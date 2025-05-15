@@ -53,39 +53,74 @@ def test_apikey_registration_and_auth(monkeypatch):
         app = create_app(metrics_registry=test_registry)
         print("[DEBUG] app type:", type(app), "app value:", app)
 
-        client = TestClient(app)
-        # Register a new API key
+                # Register a new API key
         payload = {"description": "test key", "priority": 42}
-        response = client.post("/api/v1/apikeys", json=payload)
-        assert response.status_code == 200
-        data = response.json()
-        assert "api_key" in data
-        assert data["priority"] == 42
-        api_key = data["api_key"]
+        with TestClient(app) as client:
+            response = client.post("/api/v1/apikeys", json=payload)
+            assert response.status_code == 200
+            data = response.json()
+            assert "api_key" in data
+            assert data["priority"] == 42
+            api_key = data["api_key"]
 
-        # Confirm key is in DB and has correct priority
-    db_row = get_api_key(api_key)
-    assert db_row is not None
-    assert db_row[6] == 42  # priority column
-    assert db_row[7] == 1   # active column
+            # Confirm key is in DB and has correct priority
+            db_row = get_api_key(api_key)
+            assert db_row is not None
+            assert db_row[6] == 42  # priority column
+            assert db_row[7] == 1   # active column
 
-    # Use the API key to access a protected endpoint (/infer)
-    infer_payload = {"model": "musicgen", "input": {"prompt": "hello"}}
-    # Patch httpx.post to avoid real upstream call
-    def mock_post(*args, **kwargs):
-        class MockResponse:
-            def json(self):
-                return {"result": "ok", "output": "test-output"}
-            @property
-            def status_code(self):
-                return 200
-        return MockResponse()
-    monkeypatch.setattr("httpx.post", mock_post)
+            # Use the API key to access a protected endpoint (/infer)
+            infer_payload = {"model": "openai/musicgen", "input": {"prompt": "hello"}}
+            # Patch httpx.post to avoid real upstream call
+            def mock_post(*args, **kwargs):
+                class MockResponse:
+                    def json(self):
+                        return {"result": "ok", "output": "test-output"}
+                    @property
+                    def status_code(self):
+                        return 200
+                return MockResponse()
+            monkeypatch.setattr("httpx.post", mock_post)
 
-    response = client.post("/infer", json=infer_payload, headers={"Authorization": f"Bearer {api_key}"})
-    assert response.status_code == 200
-    assert response.json()["result"] == "ok"
+            # Patch routing so 'openai/' prefix is routed to openai
+            client.app.state.provider_router.routing['model_prefix_map'] = {'openai/': 'openai', 'openai': 'openai'}
+            # Patch load_config so services includes openai/musicgen
+            monkeypatch.setattr("router.main.load_config", lambda: {"services": {"openai/musicgen": "http://dummy"}})
+            # Patch OpenAI provider client to always return dummy response
+            from router.provider_clients import PROVIDER_CLIENTS
+            class DummyOpenAIClient:
+                async def infer(self, payload, model, **kwargs):
+                    class DummyResp:
+                        status_code = 200
+                        def json(self):
+                            return {"result": "ok", "output": "test-output"}
+                        @property
+                        def content(self):
+                            return {"result": "ok", "output": "test-output"}
+                    return DummyResp()
+                async def chat_completions(self, payload, model, **kwargs):
+                    if not model.startswith("openai/"):
+                        class DummyErrorResp:
+                            status_code = 400
+                            def json(self):
+                                return {"error": {"message": "invalid model ID", "type": "invalid_request_error", "param": None, "code": None}}
+                            @property
+                            def content(self):
+                                return {"error": {"message": "invalid model ID", "type": "invalid_request_error", "param": None, "code": None}}
+                        return DummyErrorResp()
+                    class DummyResp:
+                        status_code = 200
+                        def json(self):
+                            return {"result": "ok", "model": model}
+                        @property
+                        def content(self):
+                            return {"result": "ok", "model": model}
+                    return DummyResp()
+            PROVIDER_CLIENTS['openai'] = DummyOpenAIClient()
+            response = client.post("/infer", json=infer_payload, headers={"Authorization": f"Bearer {api_key}"})
+            assert response.status_code == 200
+            assert response.json()["result"] == "ok"
 
-    # Try with a bad key
-    bad_response = client.post("/infer", json=infer_payload, headers={"Authorization": "Bearer badkey"})
-    assert bad_response.status_code == 403
+            # Try with a bad key
+            bad_response = client.post("/infer", json=infer_payload, headers={"Authorization": "Bearer badkey"})
+            assert bad_response.status_code == 403

@@ -1,4 +1,4 @@
-# Minimal config for Intelligent Inference Router tests
+# Minimal config for Intelligent Inference Router (project root)
 api_keys:
   - "example-key"
 providers:
@@ -12,3 +12,6 @@ providers:
     api_key: "${OPENROUTER_API_KEY}"
   veniceai:
     api_key: "${VENICEAI_API_KEY}"
+services:
+  dummy_service:
+    url: "http://localhost:1234"

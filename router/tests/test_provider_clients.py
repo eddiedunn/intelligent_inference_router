@@ -39,7 +39,29 @@ async def test_chat_completions_request(monkeypatch, client_cls, endpoint, model
     assert result["object"] == "chat.completion"
     assert "choices" in result
     assert "message" in result["choices"][0]
-    assert "content" in result["choices"][0]["message"]
+
+import json
+
+@pytest.mark.asyncio
+async def test_openai_client_strips_provider_prefix(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+    sent_payload = {}
+
+    async def fake_post(self, url, headers=None, json=None):
+        nonlocal sent_payload
+        sent_payload = json
+        class FakeResponse:
+            status_code = 200
+            async def json(self):
+                return {"object": "chat.completion", "choices": [{"message": {"content": "hi"}}]}
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    client = OpenAIClient()
+    result = await client.chat_completions({"messages": [{"role": "user", "content": "hi"}]}, "openai/gpt-4.1")
+    assert sent_payload["model"] == "gpt-4.1"
+    assert "content" in result.content["choices"][0]["message"]
 
 @pytest.mark.asyncio
 async def test_anthropic_completions_not_implemented(monkeypatch):

@@ -2,6 +2,7 @@ print("[DEBUG] IMPORT: provider_clients/openai.py imported")
 
 import os
 import httpx
+import sys
 from .base import ProviderClient, ProviderResponse
 
 class OpenAIClient(ProviderClient):
@@ -18,6 +19,9 @@ class OpenAIClient(ProviderClient):
         import traceback
         url = f"{self.base_url}/chat/completions"
         payload = dict(payload)
+        # Strip provider prefix if present
+        if isinstance(model, str) and model.startswith("openai/"):
+            model = model.split("/", 1)[1]
         payload["model"] = model
         print("[DEBUG] OpenAI payload:", payload)  # Debug: show payload sent to OpenAI
         try:
@@ -25,8 +29,19 @@ class OpenAIClient(ProviderClient):
                 resp = await client.post(url, headers=self.headers, json=payload)
                 print("[DEBUG] resp type:", type(resp))
                 print("[DEBUG] resp.json type:", type(getattr(resp, "json", None)))
-                # Always await resp.json() (httpx.AsyncClient returns coroutine)
-                data = await resp.json()
+                try:
+                    print("[DEBUG] resp.json() returns:", resp.json())
+                except Exception as e:
+                    print("[DEBUG] Exception calling resp.json():", e)
+                print("[DEBUG] httpx version:", httpx.__version__)
+                print("[DEBUG] Python version:", sys.version)
+                # Defensive workaround for httpx >=0.28: resp.json() may return dict if body was already read
+                result = resp.json()
+                import asyncio
+                if asyncio.iscoroutine(result):
+                    data = await result
+                else:
+                    data = result
                 print("[DEBUG] OpenAI response:", data)  # Debug: show response from OpenAI
                 return ProviderResponse(status_code=resp.status_code, content=data)
         except Exception as e:

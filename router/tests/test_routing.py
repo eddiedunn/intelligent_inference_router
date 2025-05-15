@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+from fastapi import Request
 from router.main import create_app, rate_limiter_dep
 from prometheus_client import CollectorRegistry
 from httpx import ASGITransport, AsyncClient
@@ -33,15 +34,15 @@ async def test_routing_remote_models(async_client, model, expected_provider, tes
     assert scrub_data["object"] == "chat.completion"
     assert scrub_data["choices"][0]["message"]["content"] == "Hello!"
 
-# Test local path (musicgen)
+# Test local path (gpt-4.1)
 @pytest.mark.asyncio
 async def test_routing_local_model(test_api_key):
     app = create_app(metrics_registry=CollectorRegistry())
-    async def no_op_rate_limiter(request):
+    async def no_op_rate_limiter(request: Request):
         pass
     app.dependency_overrides[rate_limiter_dep] = no_op_rate_limiter
     payload = {
-        "model": "musicgen",
+        "model": "gpt-4.1",
         "messages": [{"role": "user", "content": "hi"}]
     }
     headers = {"Authorization": f"Bearer {test_api_key}"}

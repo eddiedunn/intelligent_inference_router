@@ -46,61 +46,10 @@ def call_google_model(model_id, prompt, api_key, **kwargs):
     return resp.json()
 
 def load_recommended_models():
-    if not os.path.exists(RECOMMENDATIONS_PATH):
-        print(f"No model recommendations found at {RECOMMENDATIONS_PATH}.")
-        return []
-    with open(RECOMMENDATIONS_PATH, "r") as f:
-        recs = json.load(f)
-    models = []
-    for entry in recs:
-        category = entry.get("category")
-        provider = entry.get("provider")
-        location = entry.get("location")
-        for m in entry.get("models", []):
-            models.append({
-                "id": m.get("id"),
-                "provider": provider,
-                "location": location,
-                "category": [category],
-                "function_calling": m.get("function_calling", False),
-                "model_family": m.get("model_family", "unknown"),
-                "traits": m.get("traits", []),
-                "endpoint_url": m.get("endpoint_url"),
-                "file_path": m.get("file_path"),
-                "metadata": {"description": m.get("description", "")}
-            })
-    return models
+    raise RuntimeError("model_recommendations.json is deprecated and must not be read. All model registry operations must use the SQLite database.")
 
 def rebuild_db():
-    conn = sqlite3.connect(REGISTRY_PATH)
-    c = conn.cursor()
-    # Always drop and recreate the models table
-    c.execute("DROP TABLE IF EXISTS models;")
-    c.execute(SCHEMA)
-    # Only use the current recommendations file; if empty, registry will be empty
-    models = load_recommended_models()
-    for m in models:
-        c.execute(
-            """
-            INSERT OR REPLACE INTO models (
-                id, provider, location, category_json, function_calling, model_family, traits_json, endpoint_url, file_path, metadata_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                m["id"],
-                m["provider"],
-                m["location"],
-                json.dumps(m.get("category", [])),
-                int(m.get("function_calling", False)),
-                m.get("model_family", ""),
-                json.dumps(m.get("traits", [])),
-                m.get("endpoint_url"),
-                m.get("file_path"),
-                json.dumps(m.get("metadata", {})),
-            )
-        )
-    conn.commit()
-    conn.close()
+    raise RuntimeError("rebuild_db cannot function: model_recommendations.json is deprecated and no longer supported. All model registry operations must use the SQLite database and real provider fetch.")
 
 def list_models():
     conn = sqlite3.connect(REGISTRY_PATH)
@@ -111,17 +60,31 @@ def list_models():
     data = []
     for row in rows:
         id, provider, location, category_json, function_calling, model_family, traits_json, endpoint_url, file_path, metadata_json = row
+        def safe_json_load(val, default):
+            if val is None:
+                return default
+            if isinstance(val, (dict, list)):
+                return val
+            if isinstance(val, str):
+                val = val.strip()
+                if not val:
+                    return default
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return default
+            return default
         model = {
             "id": id,
             "provider": provider,
             "location": location,
-            "category": json.loads(category_json),
+            "category": safe_json_load(category_json, []),
             "function_calling": bool(function_calling),
             "model_family": model_family,
-            "traits": json.loads(traits_json),
+            "traits": safe_json_load(traits_json, []),
             "endpoint_url": endpoint_url,
             "file_path": file_path,
-            "metadata": json.loads(metadata_json)
+            "metadata": safe_json_load(metadata_json, {})
         }
         data.append(model)
     return {
