@@ -71,6 +71,8 @@ def configure_udp_logging():
 
 # --- Dependency for testable rate limiter ---
 def get_rate_limiter():
+    import sys
+    print('[DEBUG] ENTERED get_rate_limiter'); sys.stdout.flush()
     print("[DEBUG] ENTRY: get_rate_limiter dependency called")
     try:
         from fastapi_limiter.depends import RateLimiter
@@ -79,6 +81,9 @@ def get_rate_limiter():
         print(f"[DEBUG] RateLimiter instantiated: {limiter}")
         return limiter
     except Exception as e:
+        from fastapi import HTTPException as FastAPIHTTPException
+        if isinstance(e, FastAPIHTTPException):
+            raise
         import traceback
         print(f"[DEBUG] ERROR in get_rate_limiter: {e}")
         traceback.print_exc()
@@ -86,6 +91,10 @@ def get_rate_limiter():
 
 from starlette.responses import Response
 async def rate_limiter_dep(request: Request):
+    import sys
+    print('[DEBUG] rate_limiter_dep called'); sys.stdout.flush()
+    import sys
+    print('[DEBUG] ENTERED rate_limiter_dep'); sys.stdout.flush()
     print("[DEBUG] rate_limiter_dep called")
     limiter = get_rate_limiter()
     # Print the Redis key used for this request
@@ -106,13 +115,18 @@ async def rate_limiter_dep(request: Request):
         await limiter(request, dummy_response)
     except HTTPException as e:
         print(f"[DEBUG] rate_limiter_dep raising HTTPException: {e.status_code} {e.detail}")
-        raise
+        raise  # Always propagate HTTPException
     except Exception as e:
+        from fastapi import HTTPException as FastAPIHTTPException
+        if isinstance(e, FastAPIHTTPException):
+            raise
         print(f"[DEBUG] rate_limiter_dep caught non-HTTPException: {e}")
         raise
 
 # --- App Factory for Testability ---
 def create_app(metrics_registry=None):
+    import sys
+    print('[DEBUG] ENTERED create_app'); sys.stdout.flush()
     from fastapi import FastAPI
     app = FastAPI()
 
@@ -205,6 +219,9 @@ def create_app(metrics_registry=None):
                 cache_backend = await get_cache()
                 cache_type = 'redis'
             except Exception as e:
+                from fastapi import HTTPException as FastAPIHTTPException
+                if isinstance(e, FastAPIHTTPException):
+                    raise
                 import logging
                 logging.getLogger("iir.startup").warning(f"Redis unavailable, falling back to SimpleCache: {e}")
                 cache_backend = SimpleCache()
@@ -234,6 +251,9 @@ def create_app(metrics_registry=None):
         # Debug: Print all registered routes
         print("[DEBUG] Registered routes:")
         for route in app.routes:
+            print(f'[DEBUG] Route: {getattr(route, "path", None)} -> {getattr(route, "endpoint", None)}')
+        import sys; sys.stdout.flush()
+        for route in app.routes:
             print(f"[DEBUG] Route: {getattr(route, 'path', None)} -> {getattr(route, 'endpoint', None)}")
 
         print("[DEBUG] create_app: before health endpoint")
@@ -256,7 +276,7 @@ def create_app(metrics_registry=None):
             try:
                 raw = await request.body()
                 payload = json.loads(raw)
-            except Exception:
+            except Exception as e:
                 return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}, status_code=400)
             from router.model_registry import list_models
             validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=False)
@@ -274,11 +294,14 @@ def create_app(metrics_registry=None):
             try:
                 req_obj = InferRequest(**payload)
             except ValidationError as e:
-                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}} , status_code=400)
+                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
             # At this point, model format and existence are guaranteed valid, and Pydantic validation passed.
             requested_model = payload.get('model', '')
             models = list_models().get('data', [])
             model_entry = next((m for m in models if m['id'] == requested_model or m.get('endpoint_url') == requested_model), None)
+            if not model_entry:
+                # If no model entry found, return invalid_model_format error
+                return JSONResponse({"error": {"type": "validation_error", "code": "invalid_model_format", "message": "Model name must be in <provider>/<model> format."}}, status_code=501)
             service_url = model_entry.get('endpoint_url')
             payload_out = {"input": payload['input']}
             if payload.get('async_'):
@@ -287,14 +310,17 @@ def create_app(metrics_registry=None):
                 resp = httpx.post(f"{service_url}/infer", json=payload_out)
                 safe_content = hybrid_scrub_and_log(resp.json(), direction="outgoing /infer response")
                 return JSONResponse(content=safe_content, status_code=resp.status_code)
+            except HTTPException as e:
+                raise  # Always propagate HTTPException
             except Exception as e:
-                return upstream_error_response(message=f"Upstream error: {e}")
+                # Service unavailable or upstream error
+                return JSONResponse({"error": {"type": "service_unavailable", "code": "upstream_error", "message": f"Upstream error: {e}"}}, status_code=503)
 
         print("[DEBUG] create_app: after /infer endpoint")
 
         # --- OpenAI-compatible proxy endpoints ---
-        # from .openai_routes import router as openai_router, set_provider_router
-        # app.include_router(openai_router)
+        from .openai_routes import router as openai_router, set_provider_router
+        app.include_router(openai_router)
 
         print("[DEBUG] create_app: before metrics setup")
         metrics = get_metrics(registry=metrics_registry)
@@ -515,6 +541,7 @@ def create_app(metrics_registry=None):
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
         print("[DEBUG] Returning app:", app)
+        print(f'[DEBUG] RETURNING app from create_app (id={id(app)}, module={__name__})'); sys.stdout.flush()
         return app
     except Exception as e:
         print("[DEBUG] Exception in create_app:", e)

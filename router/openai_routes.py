@@ -1,3 +1,5 @@
+import sys
+print('[DEBUG] IMPORT: openai_routes.py loaded'); sys.stdout.flush()
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse, JSONResponse
 from .validation_utils import validate_model_and_messages
@@ -7,6 +9,8 @@ from .openai_models import (
 )
 from typing import AsyncGenerator
 import time
+import json  # Ensure json is imported
+import sys
 
 router = APIRouter()
 
@@ -34,45 +38,85 @@ async def chat_completions(
     rate_limiter=Depends(rate_limiter_dep),
     test_force_error: str = Depends(lambda: None)  # test-only slot for forced error short-circuiting
 ):
-    import logging
-    from pydantic import ValidationError
-    logger = logging.getLogger("iir.proxy")
-    logger.debug("[ENTRY] /v1/chat/completions called. Rate limiter dependency executed.")
-    if test_force_error:
-        logger.debug(f"[TEST] Forced error dependency triggered: {test_force_error}")
-        return JSONResponse({"error": {"type": "forced_error", "code": test_force_error, "message": f"Forced error: {test_force_error}"}}, status_code=499)
-    # Step 1: Parse raw JSON and validate error contract
+    print('[DEBUG] TOP OF chat_completions endpoint'); import sys; sys.stdout.flush()
+    print("[DEBUG] ENTERED /v1/chat/completions endpoint"); sys.stdout.flush()
+    # Parse JSON body
     try:
         raw = await request.body()
         payload = json.loads(raw)
-        payload.pop("mcp", None)
-    except Exception:
+    except Exception as e:
         return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}, status_code=400)
+
     user_id = request.headers.get("x-user-id") or payload.get("user")
     from .model_registry import list_models  # import inside the handler so monkeypatch works
+    # NOTE: Rate limiter (429) errors take precedence and will be raised before this point if triggered.
     validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=True)
-    if validation_result == "unknown_provider":
-        return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=501)
+    print("[DEBUG] After validate_model_and_messages"); sys.stdout.flush()
     if validation_result is not None:
         return validation_result
     # Step 2: Pydantic validation for business logic and docs
     try:
         req_obj = ChatCompletionRequest(**payload)
-    except ValidationError as e:
-        logger.debug("[ERROR] Pydantic validation error")
-        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}} , status_code=400)
-        if cached:
-            logger.info(f"Cache hit for /v1/chat/completions user={user_id}")
-            return JSONResponse(content=cached, status_code=200)
+        print("[DEBUG] After pydantic validation"); sys.stdout.flush()
+    except Exception as e:
+        print("[DEBUG] RETURNING 400 after pydantic validation"); sys.stdout.flush()
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
     # Remote/unsupported model stub logic
     try:
+        print("[DEBUG] Before classify_prompt"); sys.stdout.flush()
         classify_result = await provider_router.classify_prompt(payload.get("messages"))
+        print("[DEBUG] After classify_prompt"); sys.stdout.flush()
         if classify_result == "remote":
+            print("[DEBUG] RETURNING 501 for remote model"); sys.stdout.flush()
             return JSONResponse({"error": {"type": "not_implemented", "code": "not_implemented", "message": "Remote model routing not implemented in test stub."}}, status_code=501)
+    except HTTPException as e:
+        raise  # Always propagate HTTPException
     except Exception as e:
-        return JSONResponse({"error": {"type": "service_unavailable", "code": "classifier_error", "message": str(e)}}, status_code=503)
+        print("[DEBUG] classify_prompt error, returning 400"); sys.stdout.flush()
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_prompt_classification", "message": f"Prompt classification failed: {str(e)}"}}, status_code=400)
+    # Provider selection (unknown provider/model handling)
+    try:
+        provider_url, headers, provider_name = provider_router.select_provider(payload, user_id)
+    except Exception as e:
+        print("[DEBUG] Unknown provider/model error"); sys.stdout.flush()
+        return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": str(e)}}, status_code=400)
+    print("[DEBUG] After provider selection"); sys.stdout.flush()
+    user_id = request.headers.get("x-user-id") or payload.get("user")
+    from .model_registry import list_models  # import inside the handler so monkeypatch works
+    # NOTE: Rate limiter (429) errors take precedence and will be raised before this point if triggered.
+    validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=True)
+    print("[DEBUG] After validate_model_and_messages"); sys.stdout.flush()
+    if validation_result is not None:
+        return validation_result
+    # Step 2: Pydantic validation for business logic and docs
+    try:
+        req_obj = ChatCompletionRequest(**payload)
+        print("[DEBUG] After pydantic validation"); sys.stdout.flush()
+    except ValidationError as e:
+        logger.debug("[ERROR] Pydantic validation error")
+        print("[DEBUG] RETURNING 400 after pydantic validation"); sys.stdout.flush()
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
+    # Remote/unsupported model stub logic
+    try:
+        print("[DEBUG] Before classify_prompt"); sys.stdout.flush()
+        classify_result = await provider_router.classify_prompt(payload.get("messages"))
+        print("[DEBUG] After classify_prompt"); sys.stdout.flush()
+        if classify_result == "remote":
+            print("[DEBUG] RETURNING 501 for remote model"); sys.stdout.flush()
+            return JSONResponse({"error": {"type": "not_implemented", "code": "not_implemented", "message": "Remote model routing not implemented in test stub."}}, status_code=501)
+    except HTTPException as e:
+        raise  # Always propagate HTTPException
+    except Exception as e:
+        print("[DEBUG] classify_prompt error, returning 400"); sys.stdout.flush()
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_prompt_classification", "message": f"Prompt classification failed: {str(e)}"}}, status_code=400)
     provider_url, headers, provider_name = provider_router.select_provider(payload, user_id)
+    print("[DEBUG] After provider selection"); sys.stdout.flush()
     logger.info(f"Proxying /v1/chat/completions to {provider_url} with model {payload['model']} user={user_id}")
+    # Patch: For openrouter, strip provider prefix from model name before calling client
+    model_arg = payload["model"]
+    if provider_name == "openrouter" and "/" in model_arg:
+        model_arg = model_arg.split("/", 1)[1]
+    print("[DEBUG] Before DummyClient/httpx call"); sys.stdout.flush()
     async with httpx.AsyncClient(timeout=None) as client:
         try:
             if payload.get("stream"):
@@ -83,16 +127,22 @@ async def chat_completions(
                 await provider_router.cache_set(cache_key, r.json(), ttl=CONFIG.get("caching", {}).get("ttl", 60))
                 provider_router.record_usage(provider_name, user_id, tokens=0)
                 return JSONResponse(content=r.json(), status_code=r.status_code)
-        except httpx.HTTPError as e:
-            logger.error(f"Proxy error: {e}")
+        except HTTPException as e:
+            raise  # Always propagate HTTPException
+        except Exception as e:
+            import traceback
+            print(f"[DEBUG] Exception in endpoint: {type(e)} {e}")
+            traceback.print_exc()
+            if isinstance(e, HTTPException):
+                raise
+            logger.error(f"Unhandled error in proxy: {e}")
             return JSONResponse(
-                status_code=502,
+                status_code=503,
                 content={
                     "error": {
-                        "message": str(e),
-                        "type": "proxy_error",
-                        "param": None,
-                        "code": "proxy_error"
+                        "type": "service_unavailable",
+                        "code": "proxy_error",
+                        "message": str(e)
                     }
                 },
             )
@@ -100,6 +150,7 @@ async def chat_completions(
 # --- Completions Endpoint ---
 @router.post("/v1/completions", response_model=None, responses={400: {"model": OpenAIErrorResponse}})
 async def completions(request: Request):
+    print("[DEBUG] ENTERED /v1/completions endpoint")
     import logging
     from pydantic import ValidationError
     logger = logging.getLogger("iir.proxy")
@@ -108,18 +159,16 @@ async def completions(request: Request):
         raw = await request.body()
         payload = json.loads(raw)
         payload.pop("mcp", None)
-    except Exception:
+    except Exception as e:
+        print(f"[DEBUG] Exception during payload parse: {type(e)} {e}")
         return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": "Invalid JSON payload"}}, status_code=400)
     user_id = request.headers.get("x-user-id") or payload.get("user")
     from router.model_registry import list_models
+    # NOTE: Rate limiter (429) errors take precedence and will be raised before this point if triggered.
     validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=True)
     logger.debug(f"Validation result: {validation_result}")
-    if validation_result == "unknown_provider":
-        logger.debug("Returning 501 for unknown provider")
-        return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=501)
     if validation_result is not None:
-        status = getattr(validation_result, 'status_code', None)
-        logger.debug(f"Returning error response with status {status}")
+        logger.debug(f"Returning error response with status {getattr(validation_result, 'status_code', None)}")
         return validation_result
     # Step 2: Pydantic validation for business logic and docs
     try:
@@ -141,6 +190,10 @@ async def completions(request: Request):
             return JSONResponse(content=cached, status_code=200)
     provider_url, headers, provider_name = provider_router.select_provider(payload, user_id, context=None)
     logger.info(f"Proxying /v1/completions to {provider_url} with model {payload['model']} user={user_id}")
+    # Patch: For openrouter, strip provider prefix from model name before calling client
+    model_arg = payload["model"]
+    if provider_name == "openrouter" and "/" in model_arg:
+        model_arg = model_arg.split("/", 1)[1]
     async with httpx.AsyncClient(timeout=None) as client:
         try:
             if payload.get("stream"):
@@ -151,16 +204,22 @@ async def completions(request: Request):
                 await provider_router.cache_set(cache_key, r.json(), ttl=CONFIG.get("caching", {}).get("ttl", 60))
                 provider_router.record_usage(provider_name, user_id, tokens=0)
                 return JSONResponse(content=r.json(), status_code=r.status_code)
-        except httpx.HTTPError as e:
-            logger.error(f"Proxy error: {e}")
+        except HTTPException as e:
+            raise  # Always propagate HTTPException
+        except Exception as e:
+            import traceback
+            print(f"[DEBUG] Exception in endpoint: {type(e)} {e}")
+            traceback.print_exc()
+            if isinstance(e, HTTPException):
+                raise
+            logger.error(f"Unhandled error in proxy: {e}")
             return JSONResponse(
-                status_code=502,
+                status_code=503,
                 content={
                     "error": {
-                        "message": str(e),
-                        "type": "proxy_error",
-                        "param": None,
-                        "code": "proxy_error"
+                        "type": "service_unavailable",
+                        "code": "proxy_error",
+                        "message": str(e)
                     }
                 },
             )

@@ -9,6 +9,8 @@ from fastapi import Request, HTTPException
 @pytest.mark.asyncio
 async def test_token_limit_precedence_over_unknown_provider(test_api_key, monkeypatch):
     app = create_app(metrics_registry=CollectorRegistry())
+    import sys
+    print(f'[DEBUG TEST] app id={id(app)}, module={getattr(app, "__module__", None)}'); sys.stdout.flush()
     async def no_op_rate_limiter(request: Request):
         pass
     monkeypatch.setattr("router.main.rate_limiter_dep", no_op_rate_limiter)
@@ -28,20 +30,24 @@ async def test_token_limit_precedence_over_unknown_provider(test_api_key, monkey
 
 @pytest.mark.asyncio
 async def test_rate_limit_precedence_over_unknown_provider(test_api_key, monkeypatch):
-    app = create_app(metrics_registry=CollectorRegistry())
+    # Monkeypatch BEFORE app creation!
     async def always_429_rate_limiter(request: Request):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     monkeypatch.setattr("router.main.rate_limiter_dep", always_429_rate_limiter)
-    # Patch model registry so 'openai/gpt-3.5-turbo' IS present (rate limit precedence)
     def fake_list_models():
         return {'data': [{'id': 'openai/gpt-3.5-turbo', 'endpoint_url': None}]}
     monkeypatch.setattr("router.model_registry.list_models", fake_list_models)
+    app = create_app(metrics_registry=CollectorRegistry())
+    import sys
+    print(f'[DEBUG TEST] app id={id(app)}, module={getattr(app, "__module__", None)}'); sys.stdout.flush()
     payload = {
         "model": "openai/gpt-3.5-turbo",  # IS present in registry
         "messages": [{"role": "user", "content": "hi"}]
     }
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {test_api_key}"})
+        print("Status code:", resp.status_code)
+        print("Response body:", resp.text)
     assert resp.status_code == 429
     data = resp.json()
     assert data["error"]["code"] == "rate_limit_exceeded"

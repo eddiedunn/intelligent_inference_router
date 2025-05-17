@@ -1,5 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+import sys
+print('[DEBUG] IMPORT: test_completions_endpoint.py loaded'); sys.stdout.flush()
 import pytest
 from fastapi.testclient import TestClient
 from fastapi import Request
@@ -20,9 +22,9 @@ def patch_scrubber(monkeypatch):
     monkeypatch.setattr("router.main.hybrid_scrub_and_log", lambda body, direction=None: body)
 
 def test_completions_valid_multi_slash(monkeypatch):
+    # Patch all dependencies BEFORE app/client creation
     patch_rate_limiter(monkeypatch)
     patch_scrubber(monkeypatch)
-    # Patch load_config to include the model and routing
     monkeypatch.setattr(
         "router.main.load_config",
         lambda: {
@@ -30,14 +32,15 @@ def test_completions_valid_multi_slash(monkeypatch):
             "model_prefix_map": {"openrouter/": "openrouter"}
         }
     )
-    # Simulate a valid provider client
+    monkeypatch.setattr(
+        "router.model_registry.list_models",
+        lambda: {'data': [{'id': 'openrouter/meta-llama/Llama-3-70b-chat-hf', 'endpoint_url': None}]}
+    )
     class DummyClient:
         async def completions(self, payload, model, **kwargs):
-            # Should receive model_name with all slashes after the first
             assert model == "meta-llama/Llama-3-70b-chat-hf"
             return type("Resp", (), {"content": {"result": "ok", "model": model}, "status_code": 200})()
         async def chat_completions(self, payload, model, **kwargs):
-            # Mimic OpenAI chat completions
             assert model == "openrouter/meta-llama/Llama-3-70b-chat-hf"
             return type("Resp", (), {"content": {"result": "ok", "model": model}, "status_code": 200})()
     monkeypatch.setitem(
@@ -48,10 +51,18 @@ def test_completions_valid_multi_slash(monkeypatch):
         "model": "openrouter/meta-llama/Llama-3-70b-chat-hf",
         "messages": [{"role": "user", "content": "Hello!"}]
     }
+    # Now create app and client after all monkeypatches
     app = create_app(metrics_registry=CollectorRegistry())
     with TestClient(app) as client:
-        # Patch the routing map so openrouter/ is routed to openrouter
         client.app.state.provider_router.routing['model_prefix_map'] = {'openrouter/': 'openrouter'}
+        # Monkeypatch BOTH the app's provider_router and the global PROVIDER_ROUTER reference
+        import router.openai_routes
+        async def always_local(messages):
+            print('[DEBUG TEST] always_local classify_prompt CALLED')
+            return "local"
+        client.app.state.provider_router.classify_prompt = always_local
+        router.openai_routes.PROVIDER_ROUTER = client.app.state.provider_router
+        router.openai_routes.PROVIDER_ROUTER.classify_prompt = always_local
         r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
         assert r.status_code == 200
         assert r.json()["result"] == "ok"

@@ -1,5 +1,12 @@
 # Project Brief: Intelligent Inference Router (IIR) - MVP Phase 1a
 
+## Error Handling & Validation Initiative (2025-05)
+- The project enforces robust, explicit error codes and messages for all API validation and routing errors.
+- Model IDs must always be in <provider>/<model> format (e.g., 'openai/gpt-3.5-turbo').
+- The model registry is the authoritative source for available models, and all validation/tests must align with this.
+- Error precedence: token/rate limit errors take precedence over unknown provider errors.
+- All tests and code must be kept in sync with the error contract for maintainability and reliability.
+
 ---
 
 > **For further details and onboarding:**

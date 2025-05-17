@@ -1,5 +1,11 @@
 # Product Context: Intelligent Inference Router (IIR)
 
+## Error Handling & Validation
+Robust, explicit error handling ensures:
+- Users always receive clear, actionable error messages.
+- Developers can reliably test and maintain the API without ambiguity.
+- The system is resilient to edge cases and evolving model/provider registries.
+
 ## Why This Project Exists
 Modern AI workflows require cost-effective, high-performance, and flexible access to LLMs. Current solutions are either expensive (external APIs) or complex to self-host. The IIR bridges this gap by enabling intelligent, policy-driven routing between local LLM backends, optimizing for cost, latency, and reliability.
 

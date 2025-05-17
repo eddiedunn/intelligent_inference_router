@@ -15,17 +15,17 @@ def validate_model_and_messages(payload, list_models_func=None, require_messages
     # 2. Model field must exist and be a string
     model = payload.get("model", None)
     logger.debug(f"Model field: model={model}")
-    # Model name must be in <provider>/<model> format
+    # Model name must be in <provider>/<model> format (multi-slash allowed after first)
     if not isinstance(model, str) or '/' not in model:
         logger.debug(f"Validation error: invalid_model_format for model {model}")
-        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_model_format", "message": "Model name must be in <provider>/<model> format."}}, status_code=501)
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_model_format", "message": "Model name must be in <provider>/<model> format."}}, status_code=400)
 
-    # 3. Model must split into two non-empty parts (format check)
-    parts = model.split("/", 1)
-    logger.debug(f"Model split parts: parts={parts}")
-    if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
-        logger.debug(f"Validation error: unknown_provider for badly formatted model (model={model}, parts={parts})")
-        return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=501)
+    # 3. Model must split into two non-empty parts (first part is provider, rest is model name)
+    provider, model_name = model.split("/", 1)
+    logger.debug(f"Model split: provider={provider}, model_name={model_name}")
+    if not provider.strip() or not model_name.strip():
+        logger.debug(f"Validation error: unknown_provider for badly formatted model (model={model}, provider={provider}, model_name={model_name})")
+        return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=400)
 
     # 4. Messages validation & token limit (must be before unknown provider check)
     messages = payload.get("messages", None)
@@ -55,12 +55,25 @@ def validate_model_and_messages(payload, list_models_func=None, require_messages
         def normalize(s):
             return s.strip().lower() if isinstance(s, str) else s
         model_norm = normalize(model)
-        model_entry = next((m for m in models if normalize(m['id']) == model_norm or normalize(m.get('endpoint_url')) == model_norm), None)
+        # Accept registry models that match full model string, or match after the first slash
+        def registry_match(m):
+            mid = normalize(m['id'])
+            if mid == model_norm:
+                logger.debug(f"registry_match: direct match (mid={mid}, model_norm={model_norm})")
+                return True
+            if '/' not in mid and model_name and normalize(model_name) == mid:
+                logger.debug(f"registry_match: model_name match (mid={mid}, model_name={model_name})")
+                return True
+            if '/' in mid and mid.split('/', 1)[1] == model_name:
+                logger.debug(f"registry_match: multi-slash match (mid={mid}, model_name={model_name})")
+                return True
+            return False
+        logger.debug(f"Registry model IDs: {[m['id'] for m in models]}")
+        model_entry = next((m for m in models if registry_match(m) or normalize(m.get('endpoint_url')) == model_norm), None)
         logger.debug(f"Model registry lookup: model_entry={model_entry}")
         if not model_entry:
             logger.debug(f"Validation error: unknown_provider for model {model}")
-            # Return error response with correct code and status for unknown provider
-            return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=501)
+            return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": "Unknown remote provider for model"}}, status_code=400)
     logger.debug("Validation passed: no error")
     return None  # No error
 

@@ -5,6 +5,11 @@
 > **For known issues and debugging:** See `docs/TROUBLESHOOTING.md`
 > **For setup changes:** See `docs/SETUP.md`
 
+## What Works (2025-05-15)
+- Model validation now robustly enforces <provider>/<model> format and normalizes IDs.
+- Registry and payload matching is reliable for provider-prefixed models.
+- Most tests for token/rate limit/unknown provider precedence are now correct and robust.
+- Debug prints and legacy model_recommendations.json handling are removed.
 ## What Works
 - Project memory initialized (projectbrief, productContext, activeContext, systemPatterns, techContext)
 - .windsurfrules created for project intelligence
