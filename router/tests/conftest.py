@@ -114,6 +114,34 @@ async def async_client(uvicorn_server):
     """An httpx.AsyncClient pointed at the live FastAPI server."""
     base_url = f"http://127.0.0.1:{uvicorn_server}"
     async with httpx.AsyncClient(base_url=base_url) as ac:
+        # Patch the routing map for all required providers if possible
+        if hasattr(ac, "app") and hasattr(ac.app.state, "provider_router"):
+            ac.app.state.provider_router.routing['model_prefix_map'] = {
+                'openai/': 'openai',
+                'anthropic/': 'anthropic',
+                'grok/': 'grok',
+                'openrouter/': 'openrouter',
+                'openllama/': 'openllama',
+            }
+        # Monkeypatch model_registry.list_models to always return all tested models
+        import router.model_registry
+        def fake_list_models():
+            return {'data': [
+                {'id': 'openai/gpt-3.5-turbo', 'endpoint_url': None},
+                {'id': 'anthropic/claude-3.7-sonnet', 'endpoint_url': None},
+                {'id': 'grok/grok-1', 'endpoint_url': None},
+                {'id': 'openrouter/openrouter-1', 'endpoint_url': None},
+                {'id': 'openllama/openllama-1', 'endpoint_url': None},
+            ]}
+        router.model_registry.list_models = fake_list_models
+        # Patch providers registry for all required providers
+        ac.app.state.provider_router.providers = {
+            'openai': {},
+            'anthropic': {},
+            'grok': {},
+            'openrouter': {},
+            'openllama': {},
+        }
         yield ac
 
 @pytest.fixture(scope="session", autouse=True)

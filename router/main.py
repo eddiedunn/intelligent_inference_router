@@ -229,8 +229,6 @@ def create_app(metrics_registry=None):
             provider_router = ProviderRouter(config, cache_backend, cache_type)
             app.state.provider_router = provider_router
             print("[DEBUG] provider_router set on app.state (lifespan)")
-            from .openai_routes import set_provider_router
-            set_provider_router(provider_router)
             yield
             if redis_client:
                 await redis_client.close()
@@ -319,7 +317,7 @@ def create_app(metrics_registry=None):
         print("[DEBUG] create_app: after /infer endpoint")
 
         # --- OpenAI-compatible proxy endpoints ---
-        from .openai_routes import router as openai_router, set_provider_router
+        from .openai_routes import router as openai_router
         app.include_router(openai_router)
 
         print("[DEBUG] create_app: before metrics setup")

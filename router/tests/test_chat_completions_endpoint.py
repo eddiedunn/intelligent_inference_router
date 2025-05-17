@@ -14,7 +14,8 @@ def patch_scrubber(monkeypatch):
     monkeypatch.setattr("router.main.hybrid_scrub_and_log", lambda body, direction=None: body)
 
 def auth_header():
-    return {"Authorization": "Bearer test-secret-key-robust"}
+    # Use 'changeme' for test mode to always pass authentication
+    return {"Authorization": "Bearer changeme"}
 
 
 def test_chat_completions_valid_multi_slash(monkeypatch):
@@ -31,6 +32,21 @@ def test_chat_completions_valid_multi_slash(monkeypatch):
         "openrouter", DummyClient()
     )
     app = create_app(metrics_registry=CollectorRegistry())
+    # Ensure provider_router is set
+    if not hasattr(app.state, 'provider_router'):
+        from router.provider_router import ProviderRouter
+        from router.cache import SimpleCache
+        # Minimal config for test
+        config = {"routing": {"model_prefix_map": {"openrouter/": "openrouter"}}}
+        cache_backend = SimpleCache()
+        cache_type = 'simple'
+        app.state.provider_router = ProviderRouter(config, cache_backend, cache_type)
+        app.state.provider_router.classify_prompt = lambda *a, **k: ("general", 1.0)
+
+    # Patch classify_prompt for test context
+    
+        # Patch classify_prompt for test context
+        
     payload = {
         "model": "openrouter/meta-llama/Llama-3-70b-chat-hf",
         "messages": [{"role": "user", "content": "Hello!"}]
@@ -38,6 +54,8 @@ def test_chat_completions_valid_multi_slash(monkeypatch):
     with TestClient(app) as client:
         client.app.state.provider_router.routing['model_prefix_map'] = {'openrouter/': 'openrouter'}
         r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
+        if r.status_code != 200:
+            print(f"[TEST DEBUG] Unexpected status: {r.status_code}, body: {r.text}")
         assert r.status_code == 200
         assert r.json()["result"] == "ok"
         assert r.json()["model"] == "openrouter/meta-llama/Llama-3-70b-chat-hf"

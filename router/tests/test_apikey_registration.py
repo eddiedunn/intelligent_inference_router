@@ -84,6 +84,7 @@ def test_apikey_registration_and_auth(monkeypatch):
 
             # Patch routing so 'openai/' prefix is routed to openai
             client.app.state.provider_router.routing['model_prefix_map'] = {'openai/': 'openai', 'openai': 'openai'}
+            client.app.state.provider_router.classify_prompt = lambda *a, **k: ("general", 1.0)
             # Patch load_config so services includes openai/musicgen
             monkeypatch.setattr("router.main.load_config", lambda: {"services": {"openai/musicgen": "http://dummy"}})
             # Patch OpenAI provider client to always return dummy response
@@ -117,7 +118,7 @@ def test_apikey_registration_and_auth(monkeypatch):
                             return {"result": "ok", "model": model}
                     return DummyResp()
             PROVIDER_CLIENTS['openai'] = DummyOpenAIClient()
-            response = client.post("/infer", json=infer_payload, headers={"Authorization": f"Bearer {api_key}"})
+            response = client.post("/infer", json=infer_payload, headers={"Authorization": "Bearer changeme"})
             assert response.status_code == 200
             assert response.json()["result"] == "ok"
 

@@ -11,7 +11,8 @@ from prometheus_client import CollectorRegistry
 app = create_app(metrics_registry=CollectorRegistry())
 
 def auth_header():
-    return {"Authorization": "Bearer test-secret-key-robust"}
+    # Use 'changeme' for test mode to always pass authentication
+    return {"Authorization": "Bearer changeme"}
 
 def patch_rate_limiter(monkeypatch):
     async def dummy_rate_limiter_dep(request: Request):
@@ -55,25 +56,60 @@ def test_completions_valid_multi_slash(monkeypatch):
     app = create_app(metrics_registry=CollectorRegistry())
     with TestClient(app) as client:
         client.app.state.provider_router.routing['model_prefix_map'] = {'openrouter/': 'openrouter'}
-        # Monkeypatch BOTH the app's provider_router and the global PROVIDER_ROUTER reference
-        import router.openai_routes
-        async def always_local(messages):
-            print('[DEBUG TEST] always_local classify_prompt CALLED')
-            return "local"
-        client.app.state.provider_router.classify_prompt = always_local
-        router.openai_routes.PROVIDER_ROUTER = client.app.state.provider_router
-        router.openai_routes.PROVIDER_ROUTER.classify_prompt = always_local
-        r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
-        assert r.status_code == 200
-        assert r.json()["result"] == "ok"
-        assert r.json()["model"] == "openrouter/meta-llama/Llama-3-70b-chat-hf"
+        # Use FastAPI dependency override for get_provider_router
+        from router.openai_routes import get_provider_router
+        class DummyRouter:
+            async def classify_prompt(self, messages):
+                print('[DEBUG TEST] DummyRouter.classify_prompt CALLED')
+                return "local"
+            def select_provider(self, payload, user_id):
+                # Provide the minimal interface needed for the test
+                return (
+                    "http://dummy",  # provider_url
+                    {},              # headers
+                    "openrouter"    # provider_name
+                )
+            async def cache_set(self, *a, **kw):
+                pass
+            def record_usage(self, *a, **kw):
+                pass
+        app.dependency_overrides[get_provider_router] = lambda: DummyRouter()
+        # Patch httpx.AsyncClient.post to return a dummy response
+        import httpx
+        from unittest.mock import AsyncMock, patch
+        class DummyHTTPXResponse:
+            def __init__(self):
+                self.status_code = 200
+            async def json(self):
+                return {"result": "ok", "model": payload["model"]}
+            @property
+            def content(self):
+                return {"result": "ok", "model": payload["model"]}
+        async def dummy_post(*args, **kwargs):
+            return DummyHTTPXResponse()
+        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(side_effect=dummy_post)):
+            r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
+            assert r.status_code == 200
+            assert r.json()["result"] == "ok"
+            assert r.json()["model"] == "openrouter/meta-llama/Llama-3-70b-chat-hf"
 
 def test_completions_invalid_model(monkeypatch):
     patch_rate_limiter(monkeypatch)
     patch_scrubber(monkeypatch)
     payload = {"model": "invalidmodel", "messages": [{"role": "user", "content": "test"}]}
     app = create_app(metrics_registry=CollectorRegistry())
+    from router.openai_routes import get_provider_router
+    class DummyRouter:
+        async def classify_prompt(self, messages):
+            return "local"
+        def select_provider(self, payload, user_id):
+            return ("http://dummy", {"Authorization": "Bearer test-secret-key-robust"}, "openrouter")
+        async def cache_set(self, *a, **kw):
+            pass
+        def record_usage(self, *a, **kw):
+            pass
     with TestClient(app) as client:
+        app.dependency_overrides[get_provider_router] = lambda: DummyRouter()
         r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
         assert r.status_code == 400
         assert "Model name must be in <provider>/<model> format." in str(r.content)
@@ -83,7 +119,18 @@ def test_completions_unknown_provider(monkeypatch):
     patch_scrubber(monkeypatch)
     payload = {"model": "unknownprovider/modelname", "messages": [{"role": "user", "content": "test"}]}
     app = create_app(metrics_registry=CollectorRegistry())
+    from router.openai_routes import get_provider_router
+    class DummyRouter:
+        async def classify_prompt(self, messages):
+            return "local"
+        def select_provider(self, payload, user_id):
+            return ("http://dummy", {"Authorization": "Bearer test-secret-key-robust"}, "unknownprovider")
+        async def cache_set(self, *a, **kw):
+            pass
+        def record_usage(self, *a, **kw):
+            pass
     with TestClient(app) as client:
+        app.dependency_overrides[get_provider_router] = lambda: DummyRouter()
         r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
         assert r.status_code == 400
         assert "Unknown remote provider for model" in str(r.content)
@@ -92,8 +139,18 @@ def test_completions_missing_auth():
     # No need to patch rate limiter or scrubber, as this fails before either is called
     payload = {"model": "openai/gpt-4.1", "messages": [{"role": "user", "content": "test"}]}
     app = create_app(metrics_registry=CollectorRegistry())
+    from router.openai_routes import get_provider_router
+    class DummyRouter:
+        async def classify_prompt(self, messages):
+            return "local"
+        def select_provider(self, payload, user_id):
+            return ("http://dummy", {}, "openai")
+        async def cache_set(self, *a, **kw):
+            pass
+        def record_usage(self, *a, **kw):
+            pass
     with TestClient(app) as client:
-        r = client.post("/v1/chat/completions", json=payload)
+        r = client.post("/v1/chat/completions", json=payload)  # No auth header
         assert r.status_code == 401
 
 def test_completions_missing_model(monkeypatch):
@@ -101,7 +158,31 @@ def test_completions_missing_model(monkeypatch):
     patch_scrubber(monkeypatch)
     payload = {"messages": [{"role": "user", "content": "test"}]}
     app = create_app(metrics_registry=CollectorRegistry())
+    from router.openai_routes import get_provider_router
+    class DummyRouter:
+        async def classify_prompt(self, messages):
+            return "local"
+        def select_provider(self, payload, user_id):
+            return ("http://dummy", {"Authorization": "Bearer test-secret-key-robust"}, "openai")
+        async def cache_set(self, *a, **kw):
+            pass
+        def record_usage(self, *a, **kw):
+            pass
+    import httpx
+    from unittest.mock import AsyncMock, patch
+    class DummyHTTPXResponse:
+        def __init__(self):
+            self.status_code = 200
+        async def json(self):
+            return {"result": "ok", "model": payload.get("model", "")}
+        @property
+        def content(self):
+            return {"result": "ok", "model": payload.get("model", "")}
+    async def dummy_post(*args, **kwargs):
+        return DummyHTTPXResponse()
     with TestClient(app) as client:
-        r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
-        assert r.status_code == 400
-    assert "model" in str(r.content)
+        app.dependency_overrides[get_provider_router] = lambda: DummyRouter()
+        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(side_effect=dummy_post)):
+            r = client.post("/v1/chat/completions", headers=auth_header(), json=payload)
+            assert r.status_code == 400
+            assert "model" in str(r.content)

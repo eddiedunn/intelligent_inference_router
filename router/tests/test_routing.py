@@ -12,14 +12,24 @@ from unittest.mock import patch
 
 @pytest.fixture
 def app():
-    return create_app(metrics_registry=CollectorRegistry())
+    a = create_app(metrics_registry=CollectorRegistry())
+    # Patch routing map for all required providers
+    if hasattr(a.state, 'provider_router'):
+        a.state.provider_router.routing['model_prefix_map'] = {
+            'openai/': 'openai',
+            'anthropic/': 'anthropic',
+            'grok/': 'grok',
+            'openrouter/': 'openrouter',
+            'openllama/': 'openllama',
+        }
+    return a
 
 @pytest.mark.parametrize("model,expected_provider", [
-    ("gpt-3.5-turbo", "openai"),
-    ("claude-3.7-sonnet", "anthropic"),
-    ("grok-1", "grok"),
-    ("openrouter-1", "openrouter"),
-    ("openllama-1", "openllama"),
+    ("openai/gpt-3.5-turbo", "openai"),
+    ("anthropic/claude-3.7-sonnet", "anthropic"),
+    ("grok/grok-1", "grok"),
+    ("openrouter/openrouter-1", "openrouter"),
+    ("openllama/openllama-1", "openllama"),
 ])
 @pytest.mark.asyncio
 async def test_routing_remote_models(async_client, model, expected_provider, test_api_key):
@@ -31,8 +41,8 @@ async def test_routing_remote_models(async_client, model, expected_provider, tes
     resp = await async_client.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert scrub_data["object"] == "chat.completion"
-    assert scrub_data["choices"][0]["message"]["content"] == "Hello!"
+    assert data["object"] == "chat.completion"
+    assert data["choices"][0]["message"]["content"] == "Hello!"
 
 # Test local path (gpt-4.1)
 @pytest.mark.asyncio
