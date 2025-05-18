@@ -1,7 +1,7 @@
 import os
 import google.generativeai as genai
 
-def test_gemini(prompt, model_name="gemini-2.5-flash-preview-04-17"):
+def test_gemini(model_name="gemini-2.5-flash-preview-04-17"):
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         print("GEMINI_API_KEY (or GOOGLE_API_KEY) not set.")

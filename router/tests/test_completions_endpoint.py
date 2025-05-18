@@ -8,8 +8,6 @@ from fastapi import Request
 from router.main import create_app
 from prometheus_client import CollectorRegistry
 
-app = create_app(metrics_registry=CollectorRegistry())
-
 def auth_header():
     # Use 'changeme' for test mode to always pass authentication
     return {"Authorization": "Bearer changeme"}

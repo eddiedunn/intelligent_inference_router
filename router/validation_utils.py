@@ -4,6 +4,12 @@ MULTI_SLASH_PROVIDERS = {"openrouter", "groq", "openai-router", "anthropic-route
 
 
 def validate_model_and_messages(payload, list_models_func=None, require_messages=True, token_limit=1000):
+    print("[DEBUG][TEST] Payload to validate:", payload)
+    if list_models_func:
+        models = list_models_func()['data']
+        print("[DEBUG][TEST] Models from list_models_func:", [m['id'] for m in models])
+    else:
+        print("[DEBUG][TEST] No list_models_func provided")
     import logging
     logger = logging.getLogger("iir.validation")
     logger.debug(f"validate_model_and_messages ENTRY: payload={payload}")
@@ -63,12 +69,12 @@ def validate_model_and_messages(payload, list_models_func=None, require_messages
                 return True
             if '/' not in mid and model_name and normalize(model_name) == mid:
                 logger.debug(f"registry_match: model_name match (mid={mid}, model_name={model_name})")
-                return True
-            if '/' in mid and mid.split('/', 1)[1] == model_name:
-                logger.debug(f"registry_match: multi-slash match (mid={mid}, model_name={model_name})")
-                return True
-            return False
-        logger.debug(f"Registry model IDs: {[m['id'] for m in models]}")
+        print("[DEBUG][TEST] Looking for model:", model)
+        print("[DEBUG][TEST] All model IDs:", [m['id'] for m in models])
+        print("[DEBUG][TEST] model_norm:", model_norm)
+        for m in models:
+            print("[DEBUG][TEST] registry_id:", m['id'], "normalized:", normalize(m['id']))
+        registry_match = lambda m: m["id"] == model or normalize(m["id"]) == model_norm
         model_entry = next((m for m in models if registry_match(m) or normalize(m.get('endpoint_url')) == model_norm), None)
         logger.debug(f"Model registry lookup: model_entry={model_entry}")
         if not model_entry:

@@ -28,7 +28,7 @@ from prometheus_client import CollectorRegistry
 def test_infer_valid(monkeypatch):
     # Patch httpx.post and load_config before app creation
     import httpx
-    monkeypatch.setattr("router.main.load_config", lambda: {"services": {"openai/gpt-4.1": "http://mockservice", "musicgen": "http://mockservice"}})
+    monkeypatch.setattr("router.main.load_config", lambda: {"services": {"openai/gpt-4.1": "http://mockservice"}})
     monkeypatch.setattr(
     httpx,
     "post",
@@ -83,7 +83,7 @@ def test_infer_unknown_provider(monkeypatch):
 
 def test_infer_missing_auth():
     from unittest.mock import patch
-    with patch("router.main.load_config", return_value={"services": {"openai/gpt-4.1": "http://mockservice", "musicgen": "http://mockservice"}}):
+    with patch("router.main.load_config", return_value={"services": {"openai/gpt-4.1": "http://mockservice"}}):
         app = create_app(metrics_registry=CollectorRegistry())
         client = TestClient(app)
         payload = {"model": "openai/gpt-4.1", "input": {"prompt": "test"}}

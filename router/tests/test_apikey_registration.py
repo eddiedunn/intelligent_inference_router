@@ -70,7 +70,7 @@ def test_apikey_registration_and_auth(monkeypatch):
             assert db_row[7] == 1   # active column
 
             # Use the API key to access a protected endpoint (/infer)
-            infer_payload = {"model": "openai/musicgen", "input": {"prompt": "hello"}}
+            infer_payload = {"model": "openai/gpt-3.5-turbo", "input": {"prompt": "hello"}}
             # Patch httpx.post to avoid real upstream call
             def mock_post(*args, **kwargs):
                 class MockResponse:
@@ -85,8 +85,8 @@ def test_apikey_registration_and_auth(monkeypatch):
             # Patch routing so 'openai/' prefix is routed to openai
             client.app.state.provider_router.routing['model_prefix_map'] = {'openai/': 'openai', 'openai': 'openai'}
             client.app.state.provider_router.classify_prompt = lambda *a, **k: ("general", 1.0)
-            # Patch load_config so services includes openai/musicgen
-            monkeypatch.setattr("router.main.load_config", lambda: {"services": {"openai/musicgen": "http://dummy"}})
+            # Patch load_config so services includes openai/gpt-3.5-turbo
+            monkeypatch.setattr("router.main.load_config", lambda: {"services": {"openai/gpt-3.5-turbo": "http://dummy"}})
             # Patch OpenAI provider client to always return dummy response
             from router.provider_clients import PROVIDER_CLIENTS
             class DummyOpenAIClient:
