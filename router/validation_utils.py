@@ -1,6 +1,53 @@
 from fastapi.responses import JSONResponse
 
+# --- Modular Validation Exceptions ---
+class InvalidPayloadError(Exception): pass
+class InvalidModelFormatError(Exception): pass
+class UnknownProviderError(Exception): pass
+class InvalidMessagesError(Exception): pass
+class TokenLimitExceededError(Exception): pass
+class RegistryUnavailableError(Exception): pass
+
 MULTI_SLASH_PROVIDERS = {"openrouter", "groq", "openai-router", "anthropic-router"}
+
+# --- Modular Validators ---
+def validate_required_fields(payload):
+    if payload is None or not isinstance(payload, dict):
+        raise InvalidPayloadError("Invalid JSON payload")
+    if "model" not in payload:
+        raise InvalidPayloadError("Missing required field: model")
+    if "messages" not in payload:
+        raise InvalidPayloadError("Missing required field: messages")
+
+def validate_model_format(model):
+    if not isinstance(model, str) or '/' not in model:
+        raise InvalidModelFormatError("Model name must be in <provider>/<model> format.")
+    provider, model_name = model.split("/", 1)
+    if not provider.strip() or not model_name.strip():
+        raise UnknownProviderError("Unknown remote provider for model")
+    return provider, model_name
+
+def validate_messages(messages):
+    if messages is None or not isinstance(messages, list):
+        raise InvalidMessagesError("Missing or invalid messages field")
+    return messages
+
+def validate_token_limit(messages, token_limit=1000):
+    total_length = sum(len(m.get('content', '')) for m in messages if isinstance(m, dict))
+    if total_length > token_limit:
+        raise TokenLimitExceededError("Token limit exceeded")
+
+def validate_model_registry(model, list_models_func):
+    # Only after all other validation, check registry for unknown provider
+    try:
+        models = list_models_func().get('data', [])
+    except Exception as e:
+        raise RegistryUnavailableError("Model registry unavailable: " + str(e))
+    def normalize(s):
+        return s.strip().lower()
+    model_normalized = normalize(model)
+    if not any(normalize(m['id']) == model_normalized for m in models):
+        raise UnknownProviderError(f"Unknown provider/model: {model}")
 
 
 def validate_model_and_messages(payload, list_models_func=None, require_messages=True, token_limit=1000):

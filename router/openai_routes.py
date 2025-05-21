@@ -2,7 +2,21 @@ import sys
 print('[DEBUG] IMPORT: openai_routes.py loaded'); sys.stdout.flush()
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse, JSONResponse
-from .validation_utils import validate_model_and_messages
+from .validation_utils import (
+    validate_required_fields,
+    validate_model_format,
+    validate_messages,
+    validate_token_limit,
+    validate_model_registry,
+    InvalidPayloadError,
+    InvalidModelFormatError,
+    UnknownProviderError,
+    InvalidMessagesError,
+    TokenLimitExceededError,
+    RegistryUnavailableError,
+)
+# (Retain validate_model_and_messages import for now if needed elsewhere)
+
 from .openai_models import (
     ChatCompletionRequest, ChatCompletionResponse, OpenAIErrorResponse,
     CompletionRequest, CompletionResponse
@@ -13,6 +27,9 @@ import json  # Ensure json is imported
 import sys
 
 router = APIRouter()
+import sys
+from .main import rate_limiter_dep
+print(f'[DEBUG ROUTES] id(rate_limiter_dep) in openai_routes top = {id(rate_limiter_dep)}'); sys.stdout.flush()
 
 # --- Chat Completions Endpoint ---
 import httpx
@@ -41,6 +58,7 @@ async def chat_completions(
     test_force_error: str = Depends(lambda: None),  # test-only slot for forced error short-circuiting
     provider_router=Depends(get_provider_router),
 ):
+    print(f'[DEBUG ROUTES] id(rate_limiter_dep) in chat_completions = {id(rate_limiter_dep)}'); import sys; sys.stdout.flush()
     print('[DEBUG] TOP OF chat_completions endpoint'); import sys; sys.stdout.flush()
     print("[DEBUG] ENTERED /v1/chat/completions endpoint"); sys.stdout.flush()
     # Parse JSON body
@@ -52,13 +70,34 @@ async def chat_completions(
 
     user_id = request.headers.get("x-user-id") or payload.get("user")
     from .model_registry import list_models  # import inside the handler so monkeypatch works
-    # NOTE: Rate limiter (429) errors take precedence and will be raised before this point if triggered.
-    validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=True)
-    print("[DEBUG] After validate_model_and_messages"); sys.stdout.flush()
-    if validation_result is not None:
-        print(f"[DEBUG] Validation error response: {getattr(validation_result, 'body', validation_result)}"); sys.stdout.flush()
-        print(f"[DEBUG] Validation error status: {getattr(validation_result, 'status_code', None)}"); sys.stdout.flush()
-        return validation_result
+    # --- Modular Validation Chain ---
+    try:
+        validate_required_fields(payload)
+        provider, model_name = validate_model_format(payload["model"])
+        messages = validate_messages(payload["messages"])
+        validate_model_registry(payload["model"], list_models)
+        validate_token_limit(messages, token_limit=1000)
+    except InvalidPayloadError as e:
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
+    except InvalidModelFormatError as e:
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_model_format", "message": str(e)}}, status_code=400)
+    except InvalidMessagesError as e:
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
+    except TokenLimitExceededError as e:
+        return JSONResponse({"error": {"type": "validation_error", "code": "token_limit_exceeded", "message": str(e)}}, status_code=413)
+    except UnknownProviderError as e:
+        return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": str(e)}}, status_code=400)
+    except RegistryUnavailableError as e:
+        return JSONResponse({"error": {"type": "service_unavailable", "code": "model_registry_unavailable", "message": str(e)}}, status_code=503)
+
+    # Step 2: Pydantic validation for business logic and docs
+    try:
+        req_obj = ChatCompletionRequest(**payload)
+        print("[DEBUG] After pydantic validation"); sys.stdout.flush()
+    except Exception as e:
+        print("[DEBUG] RETURNING 400 after pydantic validation"); sys.stdout.flush()
+        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
+
     # Step 2: Pydantic validation for business logic and docs
     try:
         req_obj = ChatCompletionRequest(**payload)
@@ -86,6 +125,7 @@ async def chat_completions(
     except Exception as e:
         print("[DEBUG] classify_prompt error, returning 400"); sys.stdout.flush()
         return JSONResponse({"error": {"type": "validation_error", "code": "invalid_prompt_classification", "message": f"Prompt classification failed: {str(e)}"}}, status_code=400)
+
     # Provider selection (unknown provider/model handling)
     try:
         provider_url, headers, provider_name = provider_router.select_provider(payload, user_id)
@@ -93,35 +133,7 @@ async def chat_completions(
         print("[DEBUG] Unknown provider/model error"); sys.stdout.flush()
         return JSONResponse({"error": {"type": "validation_error", "code": "unknown_provider", "message": str(e)}}, status_code=400)
     print("[DEBUG] After provider selection"); sys.stdout.flush()
-    user_id = request.headers.get("x-user-id") or payload.get("user")
-    from .model_registry import list_models  # import inside the handler so monkeypatch works
-    # NOTE: Rate limiter (429) errors take precedence and will be raised before this point if triggered.
-    validation_result = validate_model_and_messages(payload, list_models_func=list_models, require_messages=True)
-    print("[DEBUG] After validate_model_and_messages"); sys.stdout.flush()
-    if validation_result is not None:
-        return validation_result
-    # Step 2: Pydantic validation for business logic and docs
-    try:
-        req_obj = ChatCompletionRequest(**payload)
-        print("[DEBUG] After pydantic validation"); sys.stdout.flush()
-    except Exception as e:
-        print("[DEBUG] RETURNING 400 after pydantic validation"); sys.stdout.flush()
-        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_payload", "message": str(e)}}, status_code=400)
-    # Remote/unsupported model stub logic
-    try:
-        print("[DEBUG] Before classify_prompt"); sys.stdout.flush()
-        classify_result = await provider_router.classify_prompt(payload.get("messages"))
-        print("[DEBUG] After classify_prompt"); sys.stdout.flush()
-        if classify_result == "remote":
-            print("[DEBUG] RETURNING 501 for remote model"); sys.stdout.flush()
-            return JSONResponse({"error": {"type": "not_implemented", "code": "not_implemented", "message": "Remote model routing not implemented in test stub."}}, status_code=501)
-    except HTTPException as e:
-        raise  # Always propagate HTTPException
-    except Exception as e:
-        print("[DEBUG] classify_prompt error, returning 400"); sys.stdout.flush()
-        return JSONResponse({"error": {"type": "validation_error", "code": "invalid_prompt_classification", "message": f"Prompt classification failed: {str(e)}"}}, status_code=400)
-    provider_url, headers, provider_name = provider_router.select_provider(payload, user_id)
-    print("[DEBUG] After provider selection"); sys.stdout.flush()
+
     logger.info(f"Proxying /v1/chat/completions to {provider_url} with model {payload['model']} user={user_id}")
     # Patch: For openrouter, strip provider prefix from model name before calling client
     model_arg = payload["model"]

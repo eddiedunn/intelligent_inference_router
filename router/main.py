@@ -116,6 +116,8 @@ def get_rate_limiter():
 
 from starlette.responses import Response
 async def rate_limiter_dep(request: Request):
+    print(f'[DEBUG MAIN] rate_limiter_dep CALLED (id={id(rate_limiter_dep)})'); import sys; sys.stdout.flush()
+    print('[DEBUG REAL] rate_limiter_dep CALLED'); import sys; sys.stdout.flush()
     import sys
     print('[DEBUG] rate_limiter_dep called'); sys.stdout.flush()
     import sys
@@ -149,14 +151,16 @@ async def rate_limiter_dep(request: Request):
         raise
 
 # --- App Factory for Testability ---
-def create_app(metrics_registry=None):
+def create_app(metrics_registry=None, dependency_overrides=None):
     import sys
     print('[DEBUG] ENTERED create_app'); sys.stdout.flush()
     from fastapi import FastAPI
     app = FastAPI()
+    # Apply dependency overrides if provided (for testing)
+    if dependency_overrides:
+        app.dependency_overrides.update(dependency_overrides)
     # Add middleware to allow large request bodies (e.g., 20MB)
     from router.max_body_size_middleware import MaxBodySizeMiddleware
-    app.add_middleware(MaxBodySizeMiddleware, max_body_size=20_000_000)
 
     # --- Unified error handler for JSON decode errors ---
     @app.exception_handler(FastAPIRequestValidationError)
@@ -357,6 +361,12 @@ def create_app(metrics_registry=None):
 
         # --- OpenAI-compatible proxy endpoints ---
         from .openai_routes import router as openai_router
+        # Apply dependency overrides if provided (must be before include_router)
+        import sys
+        print(f'[DEBUG MAIN] id(rate_limiter_dep) in main = {{id(rate_limiter_dep)}}'); sys.stdout.flush()
+        print(f'[DEBUG MAIN] dependency_overrides keys = {[id(k) for k in dependency_overrides.keys()] if dependency_overrides else None}'); sys.stdout.flush()
+        if dependency_overrides:
+            app.dependency_overrides.update(dependency_overrides)
         app.include_router(openai_router)
 
         print("[DEBUG] create_app: before metrics setup")
@@ -578,7 +588,14 @@ def create_app(metrics_registry=None):
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
         print("[DEBUG] Returning app:", app)
-        print(f'[DEBUG] RETURNING app from create_app (id={id(app)}, module={__name__})'); sys.stdout.flush()
+        print("[DEBUG] Registered routes and dependencies:")
+        for route in app.routes:
+            deps = getattr(route, 'dependant', None)
+            dep_names = []
+            if deps:
+                dep_names = [d.call.__name__ if hasattr(d, 'call') and d.call else str(d) for d in deps.dependencies]
+            print(f"[DEBUG ROUTE] path={route.path} name={getattr(route.endpoint, '__name__', None)} deps={dep_names}")
+        print("[DEBUG] RETURNING app from create_app (id={}, module={})".format(id(app), getattr(app, "__module__", None)))
         return app
     except Exception as e:
         print("[DEBUG] Exception in create_app:", e)
