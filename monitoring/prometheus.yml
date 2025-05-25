@@ -1,6 +1,0 @@
-# Prometheus scrape config for Intelligent Inference Router
-# Adapted for Gaia Infra Platform onboarding
-scrape_configs:
-  - job_name: 'intelligent-inference-router'
-    static_configs:
-      - targets: ['router:8000']  # Use service name as target for Docker Compose / Gaia Infra Platform
