@@ -58,7 +58,7 @@ async def forward_to_openai(payload: ChatCompletionRequest):
     headers = {"Authorization": f"Bearer {EXTERNAL_OPENAI_KEY}"}
     async with httpx.AsyncClient(base_url=OPENAI_BASE_URL) as client:
         if payload.stream:
-            resp = await client.post(
+            resp = await client.post(  # type: ignore[call-arg]
                 "/v1/chat/completions",
                 json=payload.dict(),
                 headers=headers,

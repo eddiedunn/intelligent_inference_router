@@ -6,6 +6,12 @@ This project provides a prototype OpenAI-compatible API that returns a dummy res
 
 Start the router using `make dev` and access `http://localhost:8000/v1/chat/completions`.
 
+Before running any `make` command, activate the local virtual environment:
+
+```bash
+source .venv/bin/activate
+```
+
 For local models, run the Local Agent service:
 
 ```bash
@@ -13,3 +19,12 @@ uvicorn local_agent.main:app --port 5000
 ```
 
 Any request whose `model` starts with `local` will be forwarded to this agent.
+
+Run the unit tests with coverage enabled using:
+
+```bash
+make test
+```
+
+The command writes a coverage report to `coverage.xml` and prints a summary in
+the terminal.
