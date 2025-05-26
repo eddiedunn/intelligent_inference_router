@@ -8,8 +8,11 @@ from local_agent.main import app as agent_app
 def test_forward_to_local_agent(monkeypatch) -> None:
     monkeypatch.setattr(router_main, "LOCAL_AGENT_URL", "http://testserver")
 
+    real_async_client = httpx.AsyncClient
+    transport = httpx.ASGITransport(app=agent_app)
+
     def client_factory(*args, **kwargs):
-        return httpx.AsyncClient(app=agent_app, base_url="http://testserver")
+        return real_async_client(transport=transport, base_url="http://testserver")
 
     monkeypatch.setattr(router_main.httpx, "AsyncClient", client_factory)
 
