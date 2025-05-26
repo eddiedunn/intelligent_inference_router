@@ -2,6 +2,7 @@ __pycache__/
 .env
 *.py[cod]
 *.egg-info/
+.venv/
 .idea/
 .vscode/
 *.sqlite3
