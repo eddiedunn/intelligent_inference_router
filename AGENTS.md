@@ -1,15 +1,4 @@
-Below is a ready-to-drop **`AGENTS.md`** file you can place at the root of your repo.
-It follows the conventions OpenAI Codex (the “Copdex” feature you mentioned) expects:
 
-* **Purpose of `AGENTS.md`** – Codex reads this file first, before touching any code ﻿
-* **Precedence & layering** – Codex merges three tiers of instructions (`~/.codex/instructions.md`, repo-root `AGENTS.md`, nested `AGENTS.md`), with deeper paths overriding higher ones ﻿
-* **Allowed directives & style** – The file can specify coding standards, test commands, environment rules, and even routing hints for multi-service projects ﻿
-* **Python style references** – we link back to PEP 8 for code layout and PEP 257 for docstrings so the agent formats patches consistently ﻿
-* **Project-specific content** – sections below teach Codex about your three-tier inference architecture (Router ↔ LocalAgent ↔ llm-d cluster), the SQLite/Redis registry, Docker/Kubernetes commands, and how to run tests end-to-end.
-* **Updated for May 2025** – aligns with the capabilities highlighted in the latest Codex releases and white-papers on AI coding agents ﻿
-* **Lightweight & diff-friendly** – stays under 200 lines, so patches remain readable (an OpenAI best-practice) ﻿
-
-```markdown
 # AGENTS.md
 #
 # High-level instructions for OpenAI Codex (Copdex) or any
@@ -155,10 +144,3 @@ Codex SHOULD invoke these targets rather than raw commands.
 ---
 
 *Last updated: 2025-05-25*
-
-```
-
-### How to extend
-
-*Drop a narrower `AGENTS.md` in any sub-directory to override or refine rules for that subtree – Codex will merge them with this root file in the usual precedence order.* 
-```
