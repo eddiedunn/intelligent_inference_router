@@ -13,6 +13,9 @@
 #     3. `worker_cluster/` (optional) – llm-d (vLLM) GPU workers on K8s
 # • Redis is used for caching, SQLite for the model registry & API keys.
 # • Tests are in `tests/`, run with `pytest -q`.
+# • Activate the `.venv` created by the setup script before running any
+#   `make` command (e.g. `source .venv/bin/activate`).
+
 # • Use `make <target>` or `just <target>` commands below – **never**
 #   call pip directly or hard-code paths inside Dockerfiles.
 # • Follow PEP 8 + PEP 257, write type-hinted Python 3.10+.
@@ -47,6 +50,8 @@
 ````
 
 ### 1.4 Make / Just targets
+Codex SHOULD invoke these targets only after `.venv` is active so the
+correct dependencies are used.
 | Target            | Description                                  |
 |-------------------|----------------------------------------------|
 | `make dev`        | Start router + local_agent (no Docker)       |
@@ -54,6 +59,7 @@
 | `make k3s-up`     | Spin up single-node k3s and deploy llm-d     |
 | `make test`       | Run unit tests with coverage                 |
 | `make lint`       | Run ruff, mypy, black (check mode)           |
+
 
 Codex SHOULD invoke these targets rather than raw commands.
 
