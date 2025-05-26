@@ -1,4 +1,3 @@
-import asyncio
 import httpx
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -49,7 +48,10 @@ def test_forward_to_local_agent_error(monkeypatch) -> None:
 def test_forward_to_openai_missing_key(monkeypatch) -> None:
     monkeypatch.setattr(router_main, "EXTERNAL_OPENAI_KEY", None)
     client = TestClient(router_main.app)
-    payload = {"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "hi"}]}
+    payload = {
+        "model": "gpt-3.5-turbo",
+        "messages": [{"role": "user", "content": "hi"}],
+    }
     response = client.post("/v1/chat/completions", json=payload)
     assert response.status_code == 500
     assert response.json()["detail"] == "OpenAI key not configured"

@@ -9,4 +9,4 @@ lint:
 	mypy router tests
 
 test:
-	pytest -q
+	pytest --cov=router --cov=local_agent --cov-report=term-missing --cov-report=xml -q
