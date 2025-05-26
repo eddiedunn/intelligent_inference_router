@@ -13,3 +13,12 @@ uvicorn local_agent.main:app --port 5000
 ```
 
 Any request whose `model` starts with `local` will be forwarded to this agent.
+
+Run the unit tests with coverage enabled using:
+
+```bash
+make test
+```
+
+The command writes a coverage report to `coverage.xml` and prints a summary in
+the terminal.
