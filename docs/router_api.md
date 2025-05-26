@@ -30,3 +30,13 @@ The response contains a placeholder completion:
   }]
 }
 ```
+
+### Local Agent Forwarding
+
+If the `model` field begins with `local`, the router forwards the request to the Local Agent running on port `5000`:
+
+```bash
+uvicorn local_agent.main:app --port 5000
+```
+
+The router relays the agent's JSON response back to the client.
