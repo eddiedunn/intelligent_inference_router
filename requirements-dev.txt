@@ -2,3 +2,7 @@ pytest
 ruff
 mypy
 black
+fastapi
+httpx
+uvicorn
+redis
