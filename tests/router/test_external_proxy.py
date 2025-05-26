@@ -31,8 +31,11 @@ def test_forward_to_openai(monkeypatch) -> None:
     monkeypatch.setattr(router_main, "OPENAI_BASE_URL", "http://testserver")
     monkeypatch.setattr(router_main, "EXTERNAL_OPENAI_KEY", "dummy")
 
+    real_async_client = httpx.AsyncClient
+    transport = httpx.ASGITransport(app=external_app)
+
     def client_factory(*args, **kwargs):
-        return httpx.AsyncClient(app=external_app, base_url="http://testserver")
+        return real_async_client(transport=transport, base_url="http://testserver")
 
     monkeypatch.setattr(router_main.httpx, "AsyncClient", client_factory)
 
