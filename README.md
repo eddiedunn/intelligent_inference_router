@@ -6,6 +6,12 @@ This project provides a prototype OpenAI-compatible API that returns a dummy res
 
 Start the router using `make dev` and access `http://localhost:8000/v1/chat/completions`.
 
+Before running any `make` command, activate the local virtual environment:
+
+```bash
+source .venv/bin/activate
+```
+
 For local models, run the Local Agent service:
 
 ```bash
