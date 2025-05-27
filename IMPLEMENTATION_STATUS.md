@@ -7,7 +7,7 @@ This document tracks which features from `docs/FEATURES.md` are actually impleme
 - [x] Connect Router to Local Agent
 - [x] Proxy External API Calls
 - [ ] Enable Redis Caching
-- [ ] Implement SQLite Model Registry
+- [x] Implement SQLite Model Registry
 - [ ] Forward to llm-d Cluster
 - [ ] Add Request Logging and Metrics
 

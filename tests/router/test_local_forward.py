@@ -2,11 +2,22 @@ import httpx
 from fastapi.testclient import TestClient
 
 import router.main as router_main
+import router.registry as registry
 from local_agent.main import app as agent_app
+from sqlalchemy import create_engine
 
 
-def test_forward_to_local_agent(monkeypatch) -> None:
+def test_forward_to_local_agent(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(router_main, "LOCAL_AGENT_URL", "http://testserver")
+
+    db_path = tmp_path / "models.db"
+    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    registry.SQLITE_DB_PATH = str(db_path)
+    registry.engine = create_engine(f"sqlite:///{db_path}")
+    registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
+    registry.create_tables()
+    with registry.get_session() as session:
+        registry.upsert_model(session, "local_mistral", "local", "http://testserver")
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=agent_app)

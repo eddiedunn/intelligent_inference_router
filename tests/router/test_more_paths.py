@@ -4,6 +4,8 @@ from fastapi.responses import Response
 from fastapi.testclient import TestClient
 
 import router.main as router_main
+import router.registry as registry
+from sqlalchemy import create_engine
 
 
 def test_dummy_response_has_id_prefix() -> None:
@@ -24,8 +26,17 @@ async def _error(_: router_main.ChatCompletionRequest) -> Response:
     return Response(status_code=500)
 
 
-def test_forward_to_local_agent_error(monkeypatch) -> None:
+def test_forward_to_local_agent_error(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(router_main, "LOCAL_AGENT_URL", "http://testserver")
+
+    db_path = tmp_path / "models.db"
+    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    registry.SQLITE_DB_PATH = str(db_path)
+    registry.engine = create_engine(f"sqlite:///{db_path}")
+    registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
+    registry.create_tables()
+    with registry.get_session() as session:
+        registry.upsert_model(session, "local_mistral", "local", "http://testserver")
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=error_app)
@@ -45,8 +56,18 @@ def test_forward_to_local_agent_error(monkeypatch) -> None:
     assert response.json()["detail"] == "Local agent error"
 
 
-def test_forward_to_openai_missing_key(monkeypatch) -> None:
+def test_forward_to_openai_missing_key(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(router_main, "EXTERNAL_OPENAI_KEY", None)
+
+    db_path = tmp_path / "models.db"
+    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    registry.SQLITE_DB_PATH = str(db_path)
+    registry.engine = create_engine(f"sqlite:///{db_path}")
+    registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
+    registry.create_tables()
+    with registry.get_session() as session:
+        registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused")
+
     client = TestClient(router_main.app)
     payload = {
         "model": "gpt-3.5-turbo",

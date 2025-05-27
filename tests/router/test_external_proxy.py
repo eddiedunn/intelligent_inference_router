@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import router.main as router_main
+import router.registry as registry
+from sqlalchemy import create_engine
 
 external_app = FastAPI()
 
@@ -27,9 +29,18 @@ async def _completion(payload: router_main.ChatCompletionRequest):
     }
 
 
-def test_forward_to_openai(monkeypatch) -> None:
+def test_forward_to_openai(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(router_main, "OPENAI_BASE_URL", "http://testserver")
     monkeypatch.setattr(router_main, "EXTERNAL_OPENAI_KEY", "dummy")
+
+    db_path = tmp_path / "models.db"
+    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    registry.SQLITE_DB_PATH = str(db_path)
+    registry.engine = create_engine(f"sqlite:///{db_path}")
+    registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
+    registry.create_tables()
+    with registry.get_session() as session:
+        registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused")
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=external_app)

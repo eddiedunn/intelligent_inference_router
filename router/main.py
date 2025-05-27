@@ -12,6 +12,8 @@ from fastapi.responses import StreamingResponse
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from .registry import ModelEntry, create_tables, get_session
+
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
@@ -19,6 +21,23 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
 
 app = FastAPI(title="Intelligent Inference Router")
+
+MODEL_REGISTRY: dict[str, ModelEntry] = {}
+
+
+def load_registry() -> None:
+    """Load models from the SQLite registry into memory."""
+
+    create_tables()
+    with get_session() as session:
+        MODEL_REGISTRY.clear()
+        for entry in session.query(ModelEntry).all():
+            MODEL_REGISTRY[entry.name] = entry
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    load_registry()
 
 
 class Message(BaseModel):
@@ -88,6 +107,14 @@ async def forward_to_openai(payload: ChatCompletionRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
+    entry = MODEL_REGISTRY.get(payload.model)
+
+    if entry is not None:
+        if entry.type == "local":
+            return await forward_to_local_agent(payload)
+        if entry.type == "openai":
+            return await forward_to_openai(payload)
+
     if payload.model.startswith("local"):
         return await forward_to_local_agent(payload)
 
