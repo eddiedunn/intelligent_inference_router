@@ -1,5 +1,4 @@
-.PHONY: dev lint test migrate seed docs-serve
-.PHONY: dev lint test migrate seed docker-dev
+.PHONY: dev lint test migrate seed docker-dev docs-serve
 
 
 dev:

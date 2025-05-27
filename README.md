@@ -18,9 +18,12 @@ For local models, run the Local Agent service:
 uvicorn local_agent.main:app --port 5000
 ```
 
+
 Any request whose `model` starts with `local` will be forwarded to this agent.
 
-To run the router, local agent and Redis in Docker containers, use:
+### Docker
+
+To run the router, local agent and Redis using Docker Compose, execute:
 
 ```bash
 make docker-dev
