@@ -22,6 +22,10 @@ These features are required for the MVP milestone. All other features are deferr
 - [ ] Continuous Integration Workflow
 - [ ] Documentation Site with MkDocs
 
+### Full Testing
+- [ ] Unit Tests
+- [ ] Integration Tests
+
 ---
 
 ## ❌ Explicitly NOT in MVP
