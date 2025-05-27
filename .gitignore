@@ -10,4 +10,5 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+data/models.db
 
