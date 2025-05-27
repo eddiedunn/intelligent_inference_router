@@ -28,3 +28,24 @@ make test
 
 The command writes a coverage report to `coverage.xml` and prints a summary in
 the terminal.
+
+### Model Registry
+
+Create the SQLite registry and seed default entries:
+
+```bash
+make migrate
+make seed
+```
+
+Add or update a single model entry:
+
+```bash
+python -m router.cli add-model <name> <type> <endpoint>
+```
+
+Fetch the latest models from OpenAI and refresh the registry:
+
+```bash
+python -m router.cli refresh-openai
+```

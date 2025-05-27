@@ -1,4 +1,4 @@
-.PHONY: dev lint test
+.PHONY: dev lint test migrate seed
 
 dev:
 	uvicorn router.main:app --reload --port 8000
@@ -10,3 +10,9 @@ lint:
 
 test:
 	pytest --cov=router --cov=local_agent --cov-report=term-missing --cov-report=xml -q
+
+migrate:
+	python -m router.cli migrate
+
+seed:
+	python -m router.cli seed docs/models_seed.json
