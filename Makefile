@@ -1,4 +1,4 @@
-.PHONY: dev lint test migrate seed
+.PHONY: dev lint test migrate seed docker-dev
 
 dev:
 	uvicorn router.main:app --reload --port 8000
@@ -16,3 +16,6 @@ migrate:
 
 seed:
 	python -m router.cli seed docs/models_seed.json
+
+docker-dev:
+	docker compose up

@@ -1,0 +1,35 @@
+version: '3.8'
+services:
+  router:
+    image: python:3.10-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - ./data/models.db:/app/data/models.db
+    command: >
+      sh -c "pip install -e . && uvicorn router.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      SQLITE_DB_PATH: /app/data/models.db
+      REDIS_URL: redis://redis:6379/0
+      LOCAL_AGENT_URL: http://local_agent:5000
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com}
+      EXTERNAL_OPENAI_KEY: ${EXTERNAL_OPENAI_KEY}
+    ports:
+      - "8000:8000"
+
+  local_agent:
+    image: python:3.10-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "pip install -e . && uvicorn local_agent.main:app --host 0.0.0.0 --port 5000"
+    ports:
+      - "5000:5000"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+volumes: {}
