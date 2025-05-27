@@ -1,17 +1,41 @@
 
 # AGENTS.md
+
+> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).**
+
 #
 # High-level instructions for OpenAI Codex (Copdex) or any
 # compatible AI engineering agent working in this repository.
+
+---
+
+## MVP and Post-MVP Service Summary
+
+**MVP includes:**
+- Router (FastAPI gateway, OpenAI-compatible, vllm Docker workers only)
+- Local Agent (macOS-native, Apple Silicon, vllm Docker workers only)
+- Proxy to OpenAI
+- SQLite model registry
+
+**Explicitly NOT in MVP:**
+- llm-d/worker_cluster (Kubernetes GPU workers)
+- Redis caching
+- Rate limiting
+- Smart routing
+- Additional providers (Anthropic, Google, OpenRouter, Grok, Venice)
+
+See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
+
+---
 #
 # ────────────────────────────────────────────────────────────
 # TL;DR for the agent
 # • This repo contains a distributed inference router system.
 # • Three main Python micro-services:
-#     1. `router/`   – FastAPI gateway + smart routing logic
-#     2. `local_agent/` – macOS-native service for Apple-Silicon inference
-#     3. `worker_cluster/` (optional) – llm-d (vLLM) GPU workers on K8s
-# • Redis is used for caching, SQLite for the model registry & API keys.
+#     1. `router/`   – FastAPI gateway + smart routing logic (MVP: only vllm Docker, OpenAI proxy)
+#     2. `local_agent/` – macOS-native service for Apple-Silicon inference (MVP: only vllm Docker)
+#     3. `worker_cluster/` (post-MVP) – llm-d (vLLM) GPU workers on K8s
+# • Redis is used for caching (post-MVP), SQLite for the model registry & API keys.
 # • Tests are in `tests/`, run with `pytest -q`.
 # • Activate the `.venv` created by the setup script before running any
 #   `make` command (e.g. `source .venv/bin/activate`).
@@ -96,9 +120,10 @@ Codex SHOULD invoke these targets rather than raw commands.
 
 ### 2.3 GPU Worker Cluster (`worker_cluster/`)
 
-* Provided by **llm-d** Helm chart.
-* Router calls the llm-d **Inference-Gateway** at
-  `${LLMD_ENDPOINT}/v1/chat/completions`.
+* Provided by **llm-d** Helm chart. *(Planned for post-MVP)*
+* Router will call the llm-d **Inference-Gateway** at
+  `${LLMD_ENDPOINT}/v1/chat/completions` (post-MVP only).
+
 * The cluster handles prefill/decode scheduling; Router only sees the
   OpenAI JSON wire-format.
 

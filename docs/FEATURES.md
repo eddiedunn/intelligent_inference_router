@@ -1,26 +1,67 @@
-# Intelligent Inference Router – MVP Feature Checklist
+# Intelligent Inference Router – Feature Checklist
 
-## Router
+> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).**
 
-### Build OpenAI-compatible API
-**MoSCoW:** Must
-**User story:** As a developer I want a FastAPI server exposing `/v1/chat/completions`
-so that clients can use existing OpenAI SDKs.
-**Acceptance criteria:**
-- ✅ Router starts via `make dev` and listens on `:8000`.
-- ✅ `POST /v1/chat/completions` returns a dummy response.
-- ✅ Project uses type-hinted Python 3.10+ following PEP 8.
-**Implementation hints:**
-- Create `router/main.py` using FastAPI.
-- Use env vars `SQLITE_DB_PATH` and `REDIS_URL` from `.env`.
-- Include a simple `make dev` target to run `uvicorn`.
-**Test cases:**
-- `curl -X POST localhost:8000/v1/chat/completions -d '{"model":"dummy"}'` returns 200.
-- `pytest tests/router/test_api.py` covers happy path.
-**Dependencies/blocks:** None.
+---
 
-### Connect Router to Local Agent
-**User story:** As a router user I want requests for local models forwarded to the Mac agent
+## 🚀 MVP Features
+
+These features are required for the MVP milestone. All other features are deferred.
+
+### Router
+- [x] Build OpenAI-compatible API (`/v1/chat/completions`)
+- [x] Connect Router to Local Agent (vllm, Docker-based)
+- [x] Proxy External API Calls (OpenAI only)
+- [x] Implement SQLite Model Registry
+
+### Local Agent
+- [x] Provide Local LLM Service via vLLM (Docker-based only)
+
+### Shared / Infra
+- [ ] Docker Compose for Dev Stack
+- [ ] Continuous Integration Workflow
+- [ ] Documentation Site with MkDocs
+
+---
+
+## ❌ Explicitly NOT in MVP
+
+- [ ] Enable Redis Caching
+- [ ] Rate Limiting
+- [ ] Smart Routing (intelligent request dispatch)
+- [ ] Add Request Logging and Metrics
+- [ ] Register Agent with Router
+- [ ] Send Periodic Heartbeats
+- [ ] Forward to llm-d Cluster
+- [ ] Deploy llm-d via Helm
+- [ ] Expose Cluster Endpoint to Router
+- [ ] Additional Inference Worker Types (llm-d, etc.)
+- [ ] Support for additional providers (Anthropic, Google, OpenRouter, Grok, Venice)
+
+---
+
+## 📈 Post-MVP Roadmap
+
+Features and integrations planned for after the MVP:
+
+- Caching (e.g., Redis caching)
+- Rate limiting
+- Smart routing (intelligent request dispatch)
+- Request Logging and Metrics
+- Agent registration & heartbeats
+- llm-d cluster support (forwarding, deployment, endpoint exposure)
+- Additional inference worker types (llm-d)
+- Provider integrations:
+  - Anthropic
+  - Google
+  - OpenRouter
+  - Grok
+  - Venice
+
+---
+
+**Note:** Only `vllm` (Docker-based) inference workers and OpenAI proxy are supported for MVP. All other worker types and provider integrations are deferred until after MVP. See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
+
 so that lightweight prompts run on-device.
 **Acceptance criteria:**
 - ✅ Router resolves model type `local` via the registry.

@@ -1,5 +1,20 @@
 # Router API Quickstart
 
+> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).**
+
+---
+
+## MVP Support Summary
+
+This API currently supports the following for the MVP:
+- OpenAI-compatible endpoint: `/v1/chat/completions`
+- Local agent forwarding (only vllm, Docker-based workers)
+- Proxying to OpenAI (no other providers yet)
+
+**Note:** Features such as Redis caching, rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice) are planned for post-MVP.
+
+---
+
 The router exposes an OpenAI-compatible endpoint at `/v1/chat/completions`.
 
 Start the server locally:
@@ -40,3 +55,17 @@ uvicorn local_agent.main:app --port 5000
 ```
 
 The router relays the agent's JSON response back to the client.
+
+---
+
+## Post-MVP Roadmap
+
+The following features are planned for future releases:
+- Redis caching
+- Rate limiting
+- Smart routing
+- Request logging and metrics
+- Additional inference worker types (llm-d)
+- Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice
+
+See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.

@@ -1,3 +1,5 @@
+> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).**
+
 Thanks! I’ll now prepare a revised production-ready architecture (PRD) for your distributed inference system with a clear MVP. This will:
 
 * Incorporate llm-d for GPU-scaled Kubernetes-based serving.
@@ -17,6 +19,39 @@ I’ll get started and be back soon with the plan.
 ## Overview
 
 This architecture enables flexible, cost-efficient LLM inference by routing requests to the most appropriate model or service (local, external, or distributed) using a central **Inference Router**. An *inference router* is a middleware component that dynamically directs incoming AI requests to different models or backends based on factors like task complexity, cost, and resource availability. By intelligently load-balancing and caching requests, the system avoids the throughput and latency issues of naive load balancing in LLM applications. Key goals are to leverage a Mac’s Apple Silicon (via local models on *MPS*), external APIs (OpenAI, etc.), and a GPU cluster (via **llm-d** on Kubernetes) in one seamless platform. The design draws on best practices from Alibaba’s LLM router (dynamic scheduling with health metrics), Balaji Balasubramanian’s inference router principles (cost-aware routing, observability, guardrails), and Red Hat’s Semantic Router (semantic task routing and caching).
+
+---
+
+## Feature Scope Table
+
+| Feature/Component                | MVP     | Post-MVP         |
+|----------------------------------|---------|------------------|
+| OpenAI-compatible API            | ✅      |                  |
+| Local Agent (vllm, Docker)       | ✅      |                  |
+| Proxy to OpenAI                  | ✅      |                  |
+| SQLite Model Registry            | ✅      |                  |
+| Docker Compose Dev Stack         | 🚧      |                  |
+| CI Workflow                      | 🚧      |                  |
+| MkDocs Documentation Site        | 🚧      |                  |
+| Redis Caching                    |         | ✅               |
+| Rate Limiting                    |         | ✅               |
+| Smart Routing                    |         | ✅               |
+| Request Logging & Metrics        |         | ✅               |
+| Agent Registration & Heartbeats  |         | ✅               |
+| llm-d Cluster (K8s, Helm)        |         | ✅               |
+| Additional Worker Types (llm-d)  |         | ✅               |
+| Provider Integrations:           |         |                  |
+| &nbsp;&nbsp;Anthropic            |         | ✅               |
+| &nbsp;&nbsp;Google               |         | ✅               |
+| &nbsp;&nbsp;OpenRouter           |         | ✅               |
+| &nbsp;&nbsp;Grok                 |         | ✅               |
+| &nbsp;&nbsp;Venice               |         | ✅               |
+
+**Legend:** ✅ = In MVP, 🚧 = In progress for MVP, blank = Post-MVP only
+
+---
+
+> **Note:** Only `vllm` (Docker-based) inference workers and OpenAI proxy are supported for MVP. All other worker types and provider integrations are deferred until after MVP.
 
 ## Architectural Diagram
 
