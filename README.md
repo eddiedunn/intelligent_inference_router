@@ -49,3 +49,16 @@ Fetch the latest models from OpenAI and refresh the registry:
 ```bash
 python -m router.cli refresh-openai
 ```
+
+## Documentation
+
+This project uses [MkDocs](https://www.mkdocs.org/) with the
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+Start a live preview with:
+
+```bash
+make docs-serve
+```
+
+CI builds the site using `mkdocs build` and deploys the generated `site/`
+directory to GitHub Pages.

@@ -1,4 +1,4 @@
-.PHONY: dev lint test migrate seed
+.PHONY: dev lint test migrate seed docs-serve
 
 dev:
 	uvicorn router.main:app --reload --port 8000
@@ -16,3 +16,6 @@ migrate:
 
 seed:
 	python -m router.cli seed docs/models_seed.json
+
+docs-serve:
+	mkdocs serve -a 0.0.0.0:8001
