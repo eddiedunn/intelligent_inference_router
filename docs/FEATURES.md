@@ -34,8 +34,8 @@ These features are required for the MVP milestone. All other features are deferr
 - [ ] Rate Limiting
 - [ ] Smart Routing (intelligent request dispatch)
 - [ ] Add Request Logging and Metrics
-- [ ] Register Agent with Router
-- [ ] Send Periodic Heartbeats
+- [x] Register Agent with Router
+- [x] Send Periodic Heartbeats
 - [x] Forward to llm-d Cluster
 - [x] Deploy llm-d via Helm
 - [x] Expose Cluster Endpoint to Router

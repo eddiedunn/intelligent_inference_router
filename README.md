@@ -23,13 +23,33 @@ Any request whose `model` starts with `local` will be forwarded to this agent.
 
 ### Docker
 
-To run the router, local agent and Redis using Docker Compose, execute:
+The development stack is defined in `docker-compose.yml` and includes the
+router service and a Redis instance. The SQLite model registry is stored in a
+named volume so data persists between runs.
+
+Start the stack with:
 
 ```bash
 make docker-dev
 ```
 
 Copy `.env.example` to `.env` and adjust the values if needed.
+Key environment variables:
+
+- `RATE_LIMIT_REQUESTS` – maximum requests per client within the window
+- `RATE_LIMIT_WINDOW` – window size in seconds for rate limiting
+=======
+On macOS you may also run the Local Agent container by enabling the `darwin`
+profile:
+
+```bash
+COMPOSE_PROFILES=darwin make docker-dev
+```
+
+Press `Ctrl+C` to stop the services; the `docker-dev` target will automatically
+remove the containers. Copy `.env.example` to `.env` and adjust the values if
+needed.
+
 
 ### k3s Cluster
 
@@ -76,11 +96,12 @@ python -m router.cli refresh-openai
 
 This project uses [MkDocs](https://www.mkdocs.org/) with the
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+Key pages include `setup.md`, `usage.md` and `api_examples.md` under `docs/`.
 Start a live preview with:
 
 ```bash
 make docs-serve
 ```
 
-CI builds the site using `mkdocs build` and deploys the generated `site/`
-directory to GitHub Pages.
+CI builds the site using `mkdocs build` and a dedicated workflow deploys the
+generated `site/` directory to GitHub Pages.

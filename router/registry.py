@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 from typing import List
 
-from sqlalchemy import Integer, String, create_engine
+import time
+from sqlalchemy import Float, Integer, String, create_engine
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -36,6 +37,18 @@ class ModelEntry(Base):  # type: ignore[misc]
     endpoint: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class AgentEntry(Base):  # type: ignore[misc]
+    """ORM model for registered agents."""
+
+    __tablename__ = "agents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    endpoint: Mapped[str] = mapped_column(String, nullable=False)
+    models: Mapped[str] = mapped_column(String, nullable=False)
+    last_heartbeat: Mapped[float] = mapped_column(Float, nullable=False)
+
+
 def create_tables() -> None:
     """Create registry tables if they do not exist."""
 
@@ -52,6 +65,35 @@ def list_models(session: Session) -> List[ModelEntry]:
     """Return all model entries."""
 
     return session.query(ModelEntry).all()
+
+
+def upsert_agent(session: Session, name: str, endpoint: str, models: List[str]) -> None:
+    """Insert or update an agent entry."""
+
+    now = time.time()
+    agent = session.query(AgentEntry).filter_by(name=name).first()
+    if agent is None:
+        agent = AgentEntry(
+            name=name,
+            endpoint=endpoint,
+            models=",".join(models),
+            last_heartbeat=now,
+        )
+        session.add(agent)
+    else:
+        agent.endpoint = endpoint
+        agent.models = ",".join(models)
+        agent.last_heartbeat = now
+    session.commit()
+
+
+def update_heartbeat(session: Session, name: str) -> None:
+    """Update an agent's heartbeat timestamp."""
+
+    agent = session.query(AgentEntry).filter_by(name=name).first()
+    if agent is not None:
+        agent.last_heartbeat = time.time()
+        session.commit()
 
 
 def upsert_model(session: Session, name: str, type: str, endpoint: str) -> None:
@@ -84,3 +126,9 @@ def clear_models(session: Session) -> None:
 
     session.query(ModelEntry).delete()
     session.commit()
+
+
+def list_agents(session: Session) -> List[AgentEntry]:
+    """Return all registered agents."""
+
+    return session.query(AgentEntry).all()
