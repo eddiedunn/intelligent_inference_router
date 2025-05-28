@@ -79,6 +79,9 @@ VENICE_BASE_URL=https://api.venice.ai
 EXTERNAL_VENICE_KEY=...
 ```
 
+`GOOGLE_BASE_URL` sets the base endpoint for the Gemini API while
+`EXTERNAL_GOOGLE_KEY` holds your Google API token.
+
 Set the relevant keys before starting the server. Models for each provider must
 be added to the registry using `router.cli add-model` or `refresh-openai` for
 OpenAI.
