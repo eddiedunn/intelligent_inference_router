@@ -62,7 +62,8 @@ This section tracks features, integrations, and improvements to be implemented a
 - [x] Google
 - [x] OpenRouter
 - [x] Grok
-- [ ] Venice
+- [x] Venice
+
 
 ---
 

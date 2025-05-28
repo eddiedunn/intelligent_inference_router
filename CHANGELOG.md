@@ -9,6 +9,7 @@
 
 - llm-d cluster support (`make k3s-up` and router forwarding)
 - Redis caching layer with TTL (`REDIS_URL`, `CACHE_TTL`)
+- Venice provider forwarding support
 
 
 ## [MVP Release]

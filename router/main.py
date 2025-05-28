@@ -203,6 +203,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: Optional[float] = None
     stream: Optional[bool] = False
 
+
 class AgentRegistration(BaseModel):
     name: str
     endpoint: str
@@ -265,12 +266,8 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
 
     digest = hashlib.sha256(serialized.encode()).hexdigest()
 
-    return digest
-
 
     return f"chat:{digest}"
-
-
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
     async with httpx.AsyncClient(base_url=LOCAL_AGENT_URL) as client:
@@ -467,3 +464,92 @@ async def metrics() -> Response:
     """Expose Prometheus metrics."""
 
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+    backend = select_backend(payload)
+
+    if backend == "local":
+        return await forward_to_local_agent(payload)
+
+    if backend == "openai":
+        return await forward_to_openai(payload)
+
+    cache_key = make_cache_key(payload)
+    if not payload.stream:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+    entry = MODEL_REGISTRY.get(payload.model)
+
+    if entry is not None:
+        if entry.type == "local":
+            data = await forward_to_local_agent(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+        if entry.type == "openai":
+
+            return await forward_to_openai(payload)
+
+        if entry.type == "llm-d":
+            return await forward_to_llmd(payload)
+
+        if entry.type == "anthropic":
+            return await anthropic.forward(
+                payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY
+            )
+        if entry.type == "google":
+            return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
+        if entry.type == "openrouter":
+            return await openrouter.forward(
+                payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
+            )
+        if entry.type == "grok":
+            return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
+        if entry.type == "venice":
+            return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
+
+            data = await forward_to_openai(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+
+    if payload.model.startswith("local"):
+        data = await forward_to_local_agent(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
+    if payload.model.startswith("gpt-"):
+        data = await forward_to_openai(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
+    if payload.model.startswith("llmd-"):
+        return await forward_to_llmd(payload)
+
+    dummy_text = "Hello world"
+    response = {
+        "id": f"cmpl-{uuid.uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": payload.model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": dummy_text},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        },
+    }
+    if not payload.stream:
+        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(response))
+    return response
+
