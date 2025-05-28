@@ -1,4 +1,4 @@
-.PHONY: dev lint test migrate seed docker-dev docs-serve
+.PHONY: dev lint test migrate seed docker-dev docs-serve k3s-up
 
 
 dev:
@@ -23,6 +23,13 @@ docs-serve:
 	mkdocs serve -a 0.0.0.0:8001
 
 docker-dev:
+
+\tdocker compose up
+
+k3s-up:
+\tk3d cluster create llmd --image rancher/k3s:v1.29.4-k3s1 --wait || true
+\thelm upgrade --install llm-d worker_cluster/chart -n llmd --create-namespace
 	docker compose up
 	docker compose down
+
 

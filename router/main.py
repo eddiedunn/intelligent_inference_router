@@ -55,6 +55,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+# Base URL for the llm-d inference gateway (GPU worker cluster)
+LLMD_ENDPOINT = os.getenv("LLMD_ENDPOINT")
 
 
 ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
@@ -256,6 +258,33 @@ async def forward_to_openai(payload: ChatCompletionRequest):
         return resp.json()
 
 
+
+async def forward_to_llmd(payload: ChatCompletionRequest):
+    """Forward request to the llm-d cluster."""
+
+    if LLMD_ENDPOINT is None:
+        raise HTTPException(status_code=500, detail="LLMD_ENDPOINT not configured")
+
+    async with httpx.AsyncClient(base_url=LLMD_ENDPOINT) as client:
+        if payload.stream:
+            resp = await client.post(  # type: ignore[call-arg]
+                "/v1/chat/completions",
+                json=payload.dict(),
+                stream=True,
+            )
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
+                raise HTTPException(status_code=502, detail="llm-d error") from exc
+            return StreamingResponse(_stream_resp(resp), media_type="text/event-stream")
+
+        resp = await client.post("/v1/chat/completions", json=payload.dict())
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
+            raise HTTPException(status_code=502, detail="llm-d error") from exc
+        return resp.json()
+
 @app.post("/register")
 async def register_agent(payload: AgentRegistration) -> dict:
     """Register a local agent and update the model registry."""
@@ -275,6 +304,7 @@ async def heartbeat(payload: AgentHeartbeat) -> dict:
     with get_session() as session:
         update_heartbeat(session, payload.name)
     return {"status": "ok"}
+
 
 
 @app.post("/v1/chat/completions")
@@ -369,6 +399,10 @@ async def metrics() -> Response:
         if entry.type == "openai":
 
             return await forward_to_openai(payload)
+
+        if entry.type == "llm-d":
+            return await forward_to_llmd(payload)
+
         if entry.type == "anthropic":
             return await anthropic.forward(
                 payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY
@@ -383,7 +417,7 @@ async def metrics() -> Response:
             return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
         if entry.type == "venice":
             return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
-=======
+
             data = await forward_to_openai(payload)
             if not payload.stream:
                 await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
@@ -402,6 +436,9 @@ async def metrics() -> Response:
             await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
         return data
 
+
+    if payload.model.startswith("llmd-"):
+        return await forward_to_llmd(payload)
 
     dummy_text = "Hello world"
     response = {

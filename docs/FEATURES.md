@@ -36,9 +36,9 @@ These features are required for the MVP milestone. All other features are deferr
 - [ ] Add Request Logging and Metrics
 - [x] Register Agent with Router
 - [x] Send Periodic Heartbeats
-- [ ] Forward to llm-d Cluster
-- [ ] Deploy llm-d via Helm
-- [ ] Expose Cluster Endpoint to Router
+- [x] Forward to llm-d Cluster
+- [x] Deploy llm-d via Helm
+- [x] Expose Cluster Endpoint to Router
 - [ ] Additional Inference Worker Types (llm-d, etc.)
 - [ ] Support for additional providers (Anthropic, Google, OpenRouter, Grok, Venice)
 
