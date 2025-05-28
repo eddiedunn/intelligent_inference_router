@@ -23,13 +23,26 @@ Any request whose `model` starts with `local` will be forwarded to this agent.
 
 ### Docker
 
-To run the router, local agent and Redis using Docker Compose, execute:
+The development stack is defined in `docker-compose.yml` and includes the
+router service and a Redis instance. The SQLite model registry is stored in a
+named volume so data persists between runs.
+
+Start the stack with:
 
 ```bash
 make docker-dev
 ```
 
-Copy `.env.example` to `.env` and adjust the values if needed.
+On macOS you may also run the Local Agent container by enabling the `darwin`
+profile:
+
+```bash
+COMPOSE_PROFILES=darwin make docker-dev
+```
+
+Press `Ctrl+C` to stop the services; the `docker-dev` target will automatically
+remove the containers. Copy `.env.example` to `.env` and adjust the values if
+needed.
 
 Run the unit tests with coverage enabled using:
 
