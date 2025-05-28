@@ -3,7 +3,14 @@ from __future__ import annotations
 import os
 import time
 import uuid
+
 from typing import AsyncIterator, List, Optional, Dict
+
+import json
+import hashlib
+
+import redis.asyncio as redis
+
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -18,6 +25,9 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
+
+redis_client = redis.from_url(REDIS_URL)
 
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
 RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
@@ -78,6 +88,7 @@ class ChatCompletionRequest(BaseModel):
     stream: Optional[bool] = False
 
 
+
 def select_backend(payload: ChatCompletionRequest) -> str:
     """Return backend key for the given request."""
 
@@ -92,6 +103,13 @@ def select_backend(payload: ChatCompletionRequest) -> str:
         return "openai"
 
     return "dummy"
+
+def make_cache_key(payload: ChatCompletionRequest) -> str:
+    """Return a Redis cache key for the given request."""
+
+    serialized = json.dumps(payload.dict(), sort_keys=True)
+    digest = hashlib.sha256(serialized.encode()).hexdigest()
+
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -148,6 +166,7 @@ async def forward_to_openai(payload: ChatCompletionRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
+
     backend = select_backend(payload)
 
     if backend == "local":
@@ -155,6 +174,39 @@ async def chat_completions(payload: ChatCompletionRequest):
 
     if backend == "openai":
         return await forward_to_openai(payload)
+
+    cache_key = make_cache_key(payload)
+    if not payload.stream:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+    entry = MODEL_REGISTRY.get(payload.model)
+
+    if entry is not None:
+        if entry.type == "local":
+            data = await forward_to_local_agent(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+        if entry.type == "openai":
+            data = await forward_to_openai(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+
+    if payload.model.startswith("local"):
+        data = await forward_to_local_agent(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
+    if payload.model.startswith("gpt-"):
+        data = await forward_to_openai(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
 
     dummy_text = "Hello world"
     response = {
@@ -175,4 +227,6 @@ async def chat_completions(payload: ChatCompletionRequest):
             "total_tokens": 0,
         },
     }
+    if not payload.stream:
+        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(response))
     return response
