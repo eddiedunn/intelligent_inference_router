@@ -6,10 +6,17 @@ import uuid
 from typing import AsyncIterator, List, Optional
 
 import httpx
-from fastapi import HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response, StreamingResponse
+from prometheus_client import (
+    Counter,
+    Histogram,
+    CONTENT_TYPE_LATEST,
+    generate_latest,
+)
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
-from fastapi import FastAPI
 from pydantic import BaseModel
 
 from .registry import ModelEntry, create_tables, get_session
@@ -19,6 +26,26 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_PATH = os.getenv("LOG_PATH", "logs/router.log")
+
+logger = logging.getLogger("router")
+
+REQUEST_COUNTER = Counter(
+    "router_requests_total",
+    "Total requests processed",
+    labelnames=["backend"],
+)
+CACHE_HIT_COUNTER = Counter(
+    "router_cache_hits_total",
+    "Number of cache hits",
+    labelnames=["model"],
+)
+REQUEST_LATENCY = Histogram(
+    "router_request_latency_seconds",
+    "Request latency in seconds",
+    labelnames=["backend"],
+)
 
 app = FastAPI(title="Intelligent Inference Router")
 
@@ -38,6 +65,18 @@ def load_registry() -> None:
 @app.on_event("startup")
 async def _startup() -> None:
     load_registry()
+    log_dir = os.path.dirname(LOG_PATH)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    file_handler = TimedRotatingFileHandler(LOG_PATH, when="D", interval=1)
+    file_handler.setFormatter(formatter)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.setLevel(LOG_LEVEL.upper())
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
 
 
 class Message(BaseModel):
@@ -107,37 +146,65 @@ async def forward_to_openai(payload: ChatCompletionRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
-    entry = MODEL_REGISTRY.get(payload.model)
+    start = time.perf_counter()
+    backend = "dummy"
+    cache_hit = False
+    try:
+        entry = MODEL_REGISTRY.get(payload.model)
 
-    if entry is not None:
-        if entry.type == "local":
+        if entry is not None:
+            if entry.type == "local":
+                backend = "local"
+                return await forward_to_local_agent(payload)
+            if entry.type == "openai":
+                backend = "openai"
+                return await forward_to_openai(payload)
+
+        if payload.model.startswith("local"):
+            backend = "local"
             return await forward_to_local_agent(payload)
-        if entry.type == "openai":
+
+        if payload.model.startswith("gpt-"):
+            backend = "openai"
             return await forward_to_openai(payload)
 
-    if payload.model.startswith("local"):
-        return await forward_to_local_agent(payload)
+        dummy_text = "Hello world"
+        response = {
+            "id": f"cmpl-{uuid.uuid4().hex}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": payload.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": dummy_text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            },
+        }
+        return response
+    finally:
+        latency = time.perf_counter() - start
+        REQUEST_COUNTER.labels(backend=backend).inc()
+        REQUEST_LATENCY.labels(backend=backend).observe(latency)
+        if cache_hit:
+            CACHE_HIT_COUNTER.labels(model=payload.model).inc()
+        logger.info(
+            "model=%s backend=%s latency=%.3f cache_hit=%s",
+            payload.model,
+            backend,
+            latency,
+            cache_hit,
+        )
 
-    if payload.model.startswith("gpt-"):
-        return await forward_to_openai(payload)
 
-    dummy_text = "Hello world"
-    response = {
-        "id": f"cmpl-{uuid.uuid4().hex}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": payload.model,
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": dummy_text},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-        },
-    }
-    return response
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Expose Prometheus metrics."""
+
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

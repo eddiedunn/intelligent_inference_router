@@ -22,7 +22,7 @@ This section tracks only the features required for the MVP release. Only items c
 - [ ] Enable Redis Caching
 - [ ] Rate Limiting
 - [ ] Smart Routing
-- [ ] Add Request Logging and Metrics
+- [x] Add Request Logging and Metrics
 - [ ] Register Agent with Router
 - [ ] Send Periodic Heartbeats
 - [ ] Forward to llm-d Cluster
