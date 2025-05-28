@@ -90,6 +90,10 @@ EXTERNAL_VENICE_KEY=...
 ```
 
 
+`GOOGLE_BASE_URL` sets the base endpoint for the Gemini API while
+`EXTERNAL_GOOGLE_KEY` holds your Google API token.
+
+
 For OpenRouter, both `OPENROUTER_BASE_URL` and `EXTERNAL_OPENROUTER_KEY` must be
 set before the router can forward requests to the service.
 
@@ -103,6 +107,7 @@ ROUTER_COST_THRESHOLD=1000  # route locally if cost exceeds this value
 ```
 
 If omitted, the router falls back to the values defined in the project config.
+
 
 
 Set the relevant keys before starting the server. Models for each provider must
