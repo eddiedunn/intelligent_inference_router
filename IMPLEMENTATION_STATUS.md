@@ -61,9 +61,9 @@ This section tracks features, integrations, and improvements to be implemented a
 - [x] Anthropic
 - [x] Google
 - [x] OpenRouter
-
-- Grok
+- [x] Grok
 - [x] Venice
+
 
 ---
 

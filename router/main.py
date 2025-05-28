@@ -34,7 +34,8 @@ from .utils import stream_resp
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-from typing import List, Dict
+from typing import List, Optional, Dict
+
 
 import json
 import hashlib
@@ -43,7 +44,6 @@ import redis.asyncio as redis
 
 
 from starlette.middleware.base import BaseHTTPMiddleware
-
 
 from .utils import stream_resp
 
@@ -262,6 +262,8 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
     """Return a Redis cache key for the given request."""
 
     serialized = json.dumps(payload.dict(), sort_keys=True)
+
+
     digest = hashlib.sha256(serialized.encode()).hexdigest()
 
 

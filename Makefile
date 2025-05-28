@@ -1,6 +1,5 @@
 .PHONY: dev lint test migrate seed docker-dev docs-serve k3s-up
 
-
 dev:
 	uvicorn router.main:app --reload --port 8000
 
@@ -18,10 +17,8 @@ migrate:
 seed:
 	python -m router.cli seed docs/models_seed.json
 
-
 docs-serve:
 	mkdocs serve -a 0.0.0.0:8001
-
 
 docker-dev:
 	docker compose up
@@ -31,5 +28,3 @@ k3s-up:
 	helm upgrade --install llm-d worker_cluster/chart -n llmd --create-namespace
 	docker compose up
 	docker compose down
-
-
