@@ -7,7 +7,13 @@ from pathlib import Path
 import httpx
 import typer
 
-from .registry import create_tables, get_session, upsert_model, clear_models
+from .registry import (
+    create_tables,
+    get_session,
+    upsert_model,
+    clear_models,
+    VALID_MODEL_TYPES,
+)
 
 app = typer.Typer(help="Model registry administration")
 
@@ -34,6 +40,13 @@ def seed(config: Path) -> None:
 @app.command("add-model")
 def add_model(name: str, type: str, endpoint: str) -> None:
     """Add or update a single model entry."""
+
+    if type not in VALID_MODEL_TYPES:
+        typer.echo(
+            f"Invalid model type '{type}'. Valid types: {', '.join(sorted(VALID_MODEL_TYPES))}",
+            err=True,
+        )
+        raise typer.Exit(1)
 
     with get_session() as session:
         upsert_model(session, name, type, endpoint)

@@ -4,20 +4,38 @@ import os
 import time
 import uuid
 
+import json
+import hashlib
+import logging
+from logging.handlers import TimedRotatingFileHandler
+from typing import List, Dict
+
+import tomllib
+from pathlib import Path
+
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse, JSONResponse
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from prometheus_client import (
     Counter,
     Histogram,
     CONTENT_TYPE_LATEST,
     generate_latest,
 )
+
+import redis.asyncio as redis
+
+from .utils import stream_resp
+
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
 from typing import List, Optional, Dict
+
 
 import json
 import hashlib
@@ -28,6 +46,9 @@ import redis.asyncio as redis
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .utils import stream_resp
+
+
+from .schemas import ChatCompletionRequest
 
 from pydantic import BaseModel
 
@@ -96,6 +117,25 @@ RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
 RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 RATE_LIMIT_STATE: Dict[str, List[float]] = {}
 
+# Routing configuration weights
+try:
+    with open(Path(__file__).resolve().parents[1] / "pyproject.toml", "rb") as f:
+        _config = tomllib.load(f).get("tool", {}).get("router", {})
+except Exception:
+    _config = {}
+
+ROUTER_COST_WEIGHT = float(
+    os.getenv("ROUTER_COST_WEIGHT", _config.get("cost_weight", 1.0))
+)
+ROUTER_LATENCY_WEIGHT = float(
+    os.getenv("ROUTER_LATENCY_WEIGHT", _config.get("latency_weight", 1.0))
+)
+ROUTER_COST_THRESHOLD = int(
+    os.getenv("ROUTER_COST_THRESHOLD", _config.get("cost_threshold", 1000))
+)
+
+BACKEND_METRICS: Dict[str, Dict[str, float]] = {}
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-memory rate limiter."""
@@ -150,6 +190,7 @@ async def _startup() -> None:
     logger.addHandler(stream_handler)
 
 
+
 class Message(BaseModel):
     role: str
     content: str
@@ -161,7 +202,6 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
     stream: Optional[bool] = False
-
 
 class AgentRegistration(BaseModel):
     name: str
@@ -180,11 +220,39 @@ def select_backend(payload: ChatCompletionRequest) -> str:
     if entry is not None:
         return entry.type
 
+    def _request_cost(req: ChatCompletionRequest) -> int:
+        return sum(len(m.content) for m in req.messages)
+
     if payload.model.startswith("local"):
         return "local"
 
     if payload.model.startswith("gpt-"):
-        return "openai"
+        cost = _request_cost(payload)
+        if cost >= ROUTER_COST_THRESHOLD:
+            return "local"
+        local_lat = BACKEND_METRICS.get("local", {}).get("latency", 0.0)
+        openai_lat = BACKEND_METRICS.get("openai", {}).get("latency", 0.0)
+        local_score = ROUTER_LATENCY_WEIGHT * local_lat
+        openai_score = ROUTER_LATENCY_WEIGHT * openai_lat + ROUTER_COST_WEIGHT * cost
+        return "local" if local_score <= openai_score else "openai"
+
+    if payload.model.startswith("llmd-"):
+        return "llm-d"
+
+    if payload.model.startswith("claude"):
+        return "anthropic"
+
+    if payload.model.startswith("google"):
+        return "google"
+
+    if payload.model.startswith("openrouter"):
+        return "openrouter"
+
+    if payload.model.startswith("grok"):
+        return "grok"
+
+    if payload.model.startswith("venice"):
+        return "venice"
 
     return "dummy"
 
@@ -193,7 +261,15 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
     """Return a Redis cache key for the given request."""
 
     serialized = json.dumps(payload.dict(), sort_keys=True)
-    return hashlib.sha256(serialized.encode()).hexdigest()
+
+
+    digest = hashlib.sha256(serialized.encode()).hexdigest()
+
+    return digest
+
+
+    return f"chat:{digest}"
+
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -270,6 +346,38 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
         return resp.json()
 
 
+
+async def forward_to_anthropic(payload: ChatCompletionRequest):
+    """Forward request to Anthropic."""
+
+    return await anthropic.forward(payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY)
+
+
+async def forward_to_google(payload: ChatCompletionRequest):
+    """Forward request to Google."""
+
+    return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
+
+
+async def forward_to_openrouter(payload: ChatCompletionRequest):
+    """Forward request to OpenRouter."""
+
+    return await openrouter.forward(
+        payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
+    )
+
+
+async def forward_to_grok(payload: ChatCompletionRequest):
+    """Forward request to Grok."""
+
+    return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
+
+
+async def forward_to_venice(payload: ChatCompletionRequest):
+    """Forward request to Venice."""
+
+    return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
+
 @app.post("/register")
 async def register_agent(payload: AgentRegistration) -> dict:
     """Register a local agent and update the model registry."""
@@ -340,6 +448,9 @@ async def chat_completions(payload: ChatCompletionRequest):
         latency = time.perf_counter() - start
         REQUEST_COUNTER.labels(backend=backend).inc()
         REQUEST_LATENCY.labels(backend=backend).observe(latency)
+        stat = BACKEND_METRICS.setdefault(backend, {"latency": 0.0, "count": 0})
+        stat["count"] += 1
+        stat["latency"] += (latency - stat["latency"]) / stat["count"]
         if cache_hit:
             CACHE_HIT_COUNTER.labels(model=payload.model).inc()
         logger.info(

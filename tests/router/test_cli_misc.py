@@ -55,3 +55,11 @@ def test_add_model(monkeypatch):
     result = runner.invoke(cli.app, ["add-model", "foo", "local", "http://x"])
     assert result.exit_code == 0
     assert calls == [("foo", "local", "http://x")]
+
+
+def test_add_model_invalid_type(monkeypatch):
+    monkeypatch.setattr(cli, "get_session", lambda: DummySession())
+
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["add-model", "foo", "invalid", "http://x"])
+    assert result.exit_code != 0
