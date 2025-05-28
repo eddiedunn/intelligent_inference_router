@@ -3,13 +3,12 @@ from __future__ import annotations
 import os
 import time
 import uuid
-from typing import AsyncIterator, List, Optional
+from typing import AsyncIterator, List, Optional, Dict
 
 import httpx
-from fastapi import HTTPException
-from fastapi.responses import StreamingResponse
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 from .registry import ModelEntry, create_tables, get_session
@@ -20,7 +19,33 @@ LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
 
+RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
+RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+RATE_LIMIT_STATE: Dict[str, List[float]] = {}
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Simple in-memory rate limiter."""
+
+    async def dispatch(self, request: Request, call_next):
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window = RATE_LIMIT_WINDOW
+        max_req = RATE_LIMIT_REQUESTS
+
+        timestamps = RATE_LIMIT_STATE.get(client_ip, [])
+        timestamps = [t for t in timestamps if now - t < window]
+        if len(timestamps) >= max_req:
+            return JSONResponse({"detail": "Rate limit exceeded"}, status_code=429)
+
+        timestamps.append(now)
+        RATE_LIMIT_STATE[client_ip] = timestamps
+        response = await call_next(request)
+        return response
+
+
 app = FastAPI(title="Intelligent Inference Router")
+app.add_middleware(RateLimitMiddleware)
 
 MODEL_REGISTRY: dict[str, ModelEntry] = {}
 
@@ -51,6 +76,22 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
     stream: Optional[bool] = False
+
+
+def select_backend(payload: ChatCompletionRequest) -> str:
+    """Return backend key for the given request."""
+
+    entry = MODEL_REGISTRY.get(payload.model)
+    if entry is not None:
+        return entry.type
+
+    if payload.model.startswith("local"):
+        return "local"
+
+    if payload.model.startswith("gpt-"):
+        return "openai"
+
+    return "dummy"
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -107,18 +148,12 @@ async def forward_to_openai(payload: ChatCompletionRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
-    entry = MODEL_REGISTRY.get(payload.model)
+    backend = select_backend(payload)
 
-    if entry is not None:
-        if entry.type == "local":
-            return await forward_to_local_agent(payload)
-        if entry.type == "openai":
-            return await forward_to_openai(payload)
-
-    if payload.model.startswith("local"):
+    if backend == "local":
         return await forward_to_local_agent(payload)
 
-    if payload.model.startswith("gpt-"):
+    if backend == "openai":
         return await forward_to_openai(payload)
 
     dummy_text = "Hello world"

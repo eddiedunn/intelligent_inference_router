@@ -30,6 +30,10 @@ make docker-dev
 ```
 
 Copy `.env.example` to `.env` and adjust the values if needed.
+Key environment variables:
+
+- `RATE_LIMIT_REQUESTS` – maximum requests per client within the window
+- `RATE_LIMIT_WINDOW` – window size in seconds for rate limiting
 
 Run the unit tests with coverage enabled using:
 
