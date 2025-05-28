@@ -19,6 +19,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+# Base URL for the llm-d inference gateway (GPU worker cluster)
+LLMD_ENDPOINT = os.getenv("LLMD_ENDPOINT")
 
 app = FastAPI(title="Intelligent Inference Router")
 
@@ -105,6 +107,33 @@ async def forward_to_openai(payload: ChatCompletionRequest):
         return resp.json()
 
 
+async def forward_to_llmd(payload: ChatCompletionRequest):
+    """Forward request to the llm-d cluster."""
+
+    if LLMD_ENDPOINT is None:
+        raise HTTPException(status_code=500, detail="LLMD_ENDPOINT not configured")
+
+    async with httpx.AsyncClient(base_url=LLMD_ENDPOINT) as client:
+        if payload.stream:
+            resp = await client.post(  # type: ignore[call-arg]
+                "/v1/chat/completions",
+                json=payload.dict(),
+                stream=True,
+            )
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
+                raise HTTPException(status_code=502, detail="llm-d error") from exc
+            return StreamingResponse(_stream_resp(resp), media_type="text/event-stream")
+
+        resp = await client.post("/v1/chat/completions", json=payload.dict())
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
+            raise HTTPException(status_code=502, detail="llm-d error") from exc
+        return resp.json()
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
     entry = MODEL_REGISTRY.get(payload.model)
@@ -114,12 +143,17 @@ async def chat_completions(payload: ChatCompletionRequest):
             return await forward_to_local_agent(payload)
         if entry.type == "openai":
             return await forward_to_openai(payload)
+        if entry.type == "llm-d":
+            return await forward_to_llmd(payload)
 
     if payload.model.startswith("local"):
         return await forward_to_local_agent(payload)
 
     if payload.model.startswith("gpt-"):
         return await forward_to_openai(payload)
+
+    if payload.model.startswith("llmd-"):
+        return await forward_to_llmd(payload)
 
     dummy_text = "Hello world"
     response = {

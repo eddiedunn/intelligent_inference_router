@@ -4,6 +4,10 @@
 
 ---
 
+## [Unreleased]
+### Added
+- llm-d cluster support (`make k3s-up` and router forwarding)
+
 ## [MVP Release]
 ### Added
 - OpenAI-compatible API endpoint (`/v1/chat/completions`)

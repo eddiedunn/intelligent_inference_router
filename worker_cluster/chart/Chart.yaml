@@ -1,0 +1,5 @@
+apiVersion: v2
+name: llm-d
+version: 0.1.0
+description: Basic llm-d deployment
+appVersion: "0.1"

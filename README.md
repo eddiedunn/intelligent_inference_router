@@ -31,6 +31,17 @@ make docker-dev
 
 Copy `.env.example` to `.env` and adjust the values if needed.
 
+### k3s Cluster
+
+To spin up a local k3s cluster with the sample llm-d chart run:
+
+```bash
+make k3s-up
+```
+
+After the chart deploys, set `LLMD_ENDPOINT` to the service URL so the router
+can forward requests.
+
 Run the unit tests with coverage enabled using:
 
 ```bash

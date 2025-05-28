@@ -25,9 +25,9 @@ This section tracks only the features required for the MVP release. Only items c
 - [ ] Add Request Logging and Metrics
 - [ ] Register Agent with Router
 - [ ] Send Periodic Heartbeats
-- [ ] Forward to llm-d Cluster
-- [ ] Deploy llm-d via Helm
-- [ ] Expose Cluster Endpoint to Router
+- [x] Forward to llm-d Cluster
+- [x] Deploy llm-d via Helm
+- [x] Expose Cluster Endpoint to Router
 - [ ] Additional Inference Worker Types (only vllm in Docker for MVP)
 
 ---

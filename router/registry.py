@@ -13,6 +13,8 @@ from sqlalchemy.orm import (
 )
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
+# Recognised model types for routing
+VALID_MODEL_TYPES = {"local", "openai", "llm-d"}
 
 
 class Base(DeclarativeBase):
@@ -53,7 +55,19 @@ def list_models(session: Session) -> List[ModelEntry]:
 
 
 def upsert_model(session: Session, name: str, type: str, endpoint: str) -> None:
-    """Insert or update a model entry."""
+    """Insert or update a model entry.
+
+    Parameters
+    ----------
+    session:
+        Active database session.
+    name:
+        Model identifier.
+    type:
+        Backend type (one of ``VALID_MODEL_TYPES``).
+    endpoint:
+        Base URL for the model backend.
+    """
 
     model = session.query(ModelEntry).filter_by(name=name).first()
     if model is None:

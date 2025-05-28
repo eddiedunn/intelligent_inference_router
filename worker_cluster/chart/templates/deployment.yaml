@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-d
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-d
+  template:
+    metadata:
+      labels:
+        app: llm-d
+    spec:
+      containers:
+        - name: llm-d
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8000
