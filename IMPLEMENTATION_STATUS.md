@@ -12,9 +12,7 @@ This section tracks only the features required for the MVP release. Only items c
 
 ### Local Agent
 - [x] Provide Local LLM Service via vLLM
-
-### Shared / Infra
-- [ ] Docker Compose for Dev Stack
+- [x] Docker Compose for Dev Stack
 - [x] Continuous Integration Workflow
 - [ ] Documentation Site with MkDocs
 
