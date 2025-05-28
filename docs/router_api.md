@@ -11,7 +11,7 @@ This API currently supports the following for the MVP:
 - Local agent forwarding (only vllm, Docker-based workers)
 - Proxying to OpenAI (no other providers yet)
 
-**Note:** Features such as Redis caching, rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice) are planned for post-MVP.
+**Note:** Features such as rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice) are planned for post-MVP.
 
 ---
 
@@ -80,10 +80,18 @@ accordingly.
 
 ---
 
+### Redis Caching
+
+Set `REDIS_URL` to point to your Redis instance and `CACHE_TTL` to the desired
+expiration (in seconds). When a request is received, the router checks Redis for
+a cached response before forwarding to a backend. Non-streaming responses are
+stored in Redis using the TTL.
+
+---
+
 ## Post-MVP Roadmap
 
 The following features are planned for future releases:
-- Redis caching
 - Rate limiting
 - Smart routing
 - Request logging and metrics
