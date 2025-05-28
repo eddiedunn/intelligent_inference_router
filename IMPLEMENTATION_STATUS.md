@@ -19,7 +19,7 @@ This section tracks only the features required for the MVP release. Only items c
 - [ ] Documentation Site with MkDocs
 
 ### Explicitly NOT in MVP
-- [ ] Enable Redis Caching
+- [x] Enable Redis Caching
 - [ ] Rate Limiting
 - [ ] Smart Routing
 - [ ] Add Request Logging and Metrics
