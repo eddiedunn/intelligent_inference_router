@@ -3,27 +3,53 @@ from __future__ import annotations
 import os
 import time
 import uuid
+
 import json
 import hashlib
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from typing import List, Dict
 
+import tomllib
+from pathlib import Path
+
+
+
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse, JSONResponse
+
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from prometheus_client import (
     Counter,
     Histogram,
     CONTENT_TYPE_LATEST,
     generate_latest,
 )
+
 import redis.asyncio as redis
 
 from .utils import stream_resp
+
+import logging
+from logging.handlers import TimedRotatingFileHandler
+
+from typing import List, Dict
+
+import json
+import hashlib
+
+import redis.asyncio as redis
+
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+from .utils import stream_resp
+
+
 from .schemas import ChatCompletionRequest
-from .providers import anthropic, google, openrouter, grok, venice
 
 from pydantic import BaseModel
 
@@ -91,6 +117,25 @@ redis_client = redis.from_url(REDIS_URL)
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
 RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 RATE_LIMIT_STATE: Dict[str, List[float]] = {}
+
+# Routing configuration weights
+try:
+    with open(Path(__file__).resolve().parents[1] / "pyproject.toml", "rb") as f:
+        _config = tomllib.load(f).get("tool", {}).get("router", {})
+except Exception:
+    _config = {}
+
+ROUTER_COST_WEIGHT = float(
+    os.getenv("ROUTER_COST_WEIGHT", _config.get("cost_weight", 1.0))
+)
+ROUTER_LATENCY_WEIGHT = float(
+    os.getenv("ROUTER_LATENCY_WEIGHT", _config.get("latency_weight", 1.0))
+)
+ROUTER_COST_THRESHOLD = int(
+    os.getenv("ROUTER_COST_THRESHOLD", _config.get("cost_threshold", 1000))
+)
+
+BACKEND_METRICS: Dict[str, Dict[str, float]] = {}
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -163,11 +208,21 @@ def select_backend(payload: ChatCompletionRequest) -> str:
     if entry is not None:
         return entry.type
 
+    def _request_cost(req: ChatCompletionRequest) -> int:
+        return sum(len(m.content) for m in req.messages)
+
     if payload.model.startswith("local"):
         return "local"
 
     if payload.model.startswith("gpt-"):
-        return "openai"
+        cost = _request_cost(payload)
+        if cost >= ROUTER_COST_THRESHOLD:
+            return "local"
+        local_lat = BACKEND_METRICS.get("local", {}).get("latency", 0.0)
+        openai_lat = BACKEND_METRICS.get("openai", {}).get("latency", 0.0)
+        local_score = ROUTER_LATENCY_WEIGHT * local_lat
+        openai_score = ROUTER_LATENCY_WEIGHT * openai_lat + ROUTER_COST_WEIGHT * cost
+        return "local" if local_score <= openai_score else "openai"
 
     if payload.model.startswith("llmd-"):
         return "llm-d"
@@ -195,7 +250,12 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
 
     serialized = json.dumps(payload.dict(), sort_keys=True)
     digest = hashlib.sha256(serialized.encode()).hexdigest()
+
     return digest
+
+
+    return f"chat:{digest}"
+
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -270,6 +330,7 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
         except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
             raise HTTPException(status_code=502, detail="llm-d error") from exc
         return resp.json()
+
 
 
 async def forward_to_anthropic(payload: ChatCompletionRequest):
@@ -374,6 +435,9 @@ async def chat_completions(payload: ChatCompletionRequest):
         latency = time.perf_counter() - start
         REQUEST_COUNTER.labels(backend=backend).inc()
         REQUEST_LATENCY.labels(backend=backend).observe(latency)
+        stat = BACKEND_METRICS.setdefault(backend, {"latency": 0.0, "count": 0})
+        stat["count"] += 1
+        stat["latency"] += (latency - stat["latency"]) / stat["count"]
         if cache_hit:
             CACHE_HIT_COUNTER.labels(model=payload.model).inc()
         logger.info(
