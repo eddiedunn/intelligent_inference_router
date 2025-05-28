@@ -94,8 +94,16 @@ stored in Redis using the TTL.
 The following features are planned for future releases:
 - Rate limiting
 - Smart routing
-- Request logging and metrics
 - Additional inference worker types (llm-d)
 - Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice
 
 See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
+
+---
+
+## Monitoring
+
+The router exposes Prometheus metrics at `/metrics`. Basic counters
+track request volume, latency and cache hits. Logs are written to
+`logs/router.log` and rotated daily. Configure the log level via the
+`LOG_LEVEL` environment variable.

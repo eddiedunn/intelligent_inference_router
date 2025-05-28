@@ -29,9 +29,10 @@ This section tracks only the features required for the MVP release. Only items c
 - [x] Rate Limiting
 
 - [ ] Smart Routing
-- [ ] Add Request Logging and Metrics
+- [x] Add Request Logging and Metrics
 - [x] Register Agent with Router
 - [x] Send Periodic Heartbeats
+
 - [ ] Forward to llm-d Cluster
 - [ ] Deploy llm-d via Helm
 - [ ] Expose Cluster Endpoint to Router
