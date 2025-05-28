@@ -89,6 +89,10 @@ VENICE_BASE_URL=https://api.venice.ai
 EXTERNAL_VENICE_KEY=...
 ```
 
+
+For OpenRouter, both `OPENROUTER_BASE_URL` and `EXTERNAL_OPENROUTER_KEY` must be
+set before the router can forward requests to the service.
+
 Routing decisions also depend on a few tuning variables. These may be set as
 environment variables or placed under `[tool.router]` in `pyproject.toml`:
 
@@ -99,6 +103,7 @@ ROUTER_COST_THRESHOLD=1000  # route locally if cost exceeds this value
 ```
 
 If omitted, the router falls back to the values defined in the project config.
+
 
 Set the relevant keys before starting the server. Models for each provider must
 be added to the registry using `router.cli add-model` or `refresh-openai` for
