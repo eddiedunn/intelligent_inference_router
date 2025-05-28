@@ -24,4 +24,5 @@ docs-serve:
 
 docker-dev:
 	docker compose up
+	docker compose down
 

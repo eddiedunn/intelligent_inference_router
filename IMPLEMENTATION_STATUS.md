@@ -14,17 +14,25 @@ This section tracks only the features required for the MVP release. Only items c
 - [x] Provide Local LLM Service via vLLM
 
 ### Shared / Infra
-- [ ] Docker Compose for Dev Stack
-- [ ] Continuous Integration Workflow
-- [ ] Documentation Site with MkDocs
+- [x] Docker Compose for Dev Stack
+- [x] Continuous Integration Workflow
+- [x] Documentation Site with MkDocs
+
+
+### Testing
+- [x] Unit Tests
+- [x] Integration Tests
 
 ### Explicitly NOT in MVP
-- [ ] Enable Redis Caching
-- [ ] Rate Limiting
+
+- [x] Enable Redis Caching
+- [x] Rate Limiting
+
 - [ ] Smart Routing
-- [ ] Add Request Logging and Metrics
-- [ ] Register Agent with Router
-- [ ] Send Periodic Heartbeats
+- [x] Add Request Logging and Metrics
+- [x] Register Agent with Router
+- [x] Send Periodic Heartbeats
+
 - [ ] Forward to llm-d Cluster
 - [ ] Deploy llm-d via Helm
 - [ ] Expose Cluster Endpoint to Router

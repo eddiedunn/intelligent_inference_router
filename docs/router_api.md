@@ -12,7 +12,9 @@ This API currently supports the following:
 - Proxying to OpenAI
 - Forwarding to additional providers: Anthropic, Google, OpenRouter, Grok, Venice
 
-**Note:** Features such as Redis caching, rate limiting, smart routing, and llm-d worker types are still planned for a future release.
+
+**Note:** Features such as rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice) are planned for post-MVP.
+
 
 ---
 
@@ -81,16 +83,55 @@ Set the relevant keys before starting the server. Models for each provider must
 be added to the registry using `router.cli add-model` or `refresh-openai` for
 OpenAI.
 
+### Agent Registration & Heartbeats
+
+Agents announce themselves to the router using the `/register` and `/heartbeat`
+endpoints. A registration payload has the form:
+
+```json
+{
+  "name": "local-agent",
+  "endpoint": "http://localhost:5000",
+  "models": ["local_mistral-7b-instruct-q4"]
+}
+```
+
+After registration, agents should periodically `POST` to `/heartbeat` with
+
+```json
+{"name": "local-agent"}
+```
+
+The router stores this data in SQLite and updates the model registry
+accordingly.
+
+---
+
+### Redis Caching
+
+Set `REDIS_URL` to point to your Redis instance and `CACHE_TTL` to the desired
+expiration (in seconds). When a request is received, the router checks Redis for
+a cached response before forwarding to a backend. Non-streaming responses are
+stored in Redis using the TTL.
+
+
 ---
 
 ## Post-MVP Roadmap
 
 The following features are planned for future releases:
-- Redis caching
 - Rate limiting
 - Smart routing
-- Request logging and metrics
 - Additional inference worker types (llm-d)
 - Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice
 
 See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
+
+---
+
+## Monitoring
+
+The router exposes Prometheus metrics at `/metrics`. Basic counters
+track request volume, latency and cache hits. Logs are written to
+`logs/router.log` and rotated daily. Configure the log level via the
+`LOG_LEVEL` environment variable.

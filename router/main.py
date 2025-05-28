@@ -5,9 +5,32 @@ import time
 import uuid
 
 
+
 import httpx
-from fastapi import HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response, StreamingResponse
+from prometheus_client import (
+    Counter,
+    Histogram,
+    CONTENT_TYPE_LATEST,
+    generate_latest,
+)
+import logging
+from logging.handlers import TimedRotatingFileHandler
+
+from typing import AsyncIterator, List, Optional, Dict
+
+import json
+import hashlib
+
+import redis.asyncio as redis
+
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
 
 from .utils import stream_resp
 
@@ -15,13 +38,24 @@ from fastapi import FastAPI
 from .schemas import ChatCompletionRequest
 from .providers import anthropic, google, openrouter, grok, venice
 
-from .registry import ModelEntry, create_tables, get_session
+from pydantic import BaseModel
+
+
+from .registry import (
+    ModelEntry,
+    create_tables,
+    get_session,
+    upsert_agent,
+    upsert_model,
+    update_heartbeat,
+)
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+
 
 ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
 EXTERNAL_ANTHROPIC_KEY = os.getenv("EXTERNAL_ANTHROPIC_KEY")
@@ -40,7 +74,59 @@ EXTERNAL_GROK_KEY = os.getenv("EXTERNAL_GROK_KEY")
 VENICE_BASE_URL = os.getenv("VENICE_BASE_URL", "https://api.venice.ai")
 EXTERNAL_VENICE_KEY = os.getenv("EXTERNAL_VENICE_KEY")
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_PATH = os.getenv("LOG_PATH", "logs/router.log")
+
+logger = logging.getLogger("router")
+
+REQUEST_COUNTER = Counter(
+    "router_requests_total",
+    "Total requests processed",
+    labelnames=["backend"],
+)
+CACHE_HIT_COUNTER = Counter(
+    "router_cache_hits_total",
+    "Number of cache hits",
+    labelnames=["model"],
+)
+REQUEST_LATENCY = Histogram(
+    "router_request_latency_seconds",
+    "Request latency in seconds",
+    labelnames=["backend"],
+
+CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
+
+redis_client = redis.from_url(REDIS_URL)
+
+RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
+RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+RATE_LIMIT_STATE: Dict[str, List[float]] = {}
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Simple in-memory rate limiter."""
+
+    async def dispatch(self, request: Request, call_next):
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window = RATE_LIMIT_WINDOW
+        max_req = RATE_LIMIT_REQUESTS
+
+        timestamps = RATE_LIMIT_STATE.get(client_ip, [])
+        timestamps = [t for t in timestamps if now - t < window]
+        if len(timestamps) >= max_req:
+            return JSONResponse({"detail": "Rate limit exceeded"}, status_code=429)
+
+        timestamps.append(now)
+        RATE_LIMIT_STATE[client_ip] = timestamps
+        response = await call_next(request)
+        return response
+
+
+
+
 app = FastAPI(title="Intelligent Inference Router")
+app.add_middleware(RateLimitMiddleware)
 
 MODEL_REGISTRY: dict[str, ModelEntry] = {}
 
@@ -58,6 +144,69 @@ def load_registry() -> None:
 @app.on_event("startup")
 async def _startup() -> None:
     load_registry()
+    log_dir = os.path.dirname(LOG_PATH)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    file_handler = TimedRotatingFileHandler(LOG_PATH, when="D", interval=1)
+    file_handler.setFormatter(formatter)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.setLevel(LOG_LEVEL.upper())
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+
+
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: List[Message]
+    max_tokens: Optional[int] = None
+    temperature: Optional[float] = None
+    stream: Optional[bool] = False
+
+
+
+
+class AgentRegistration(BaseModel):
+    name: str
+    endpoint: str
+    models: List[str]
+
+
+class AgentHeartbeat(BaseModel):
+    name: str
+
+def select_backend(payload: ChatCompletionRequest) -> str:
+    """Return backend key for the given request."""
+
+    entry = MODEL_REGISTRY.get(payload.model)
+    if entry is not None:
+        return entry.type
+
+    if payload.model.startswith("local"):
+        return "local"
+
+    if payload.model.startswith("gpt-"):
+        return "openai"
+
+    return "dummy"
+
+
+def make_cache_key(payload: ChatCompletionRequest) -> str:
+    """Return a Redis cache key for the given request."""
+
+    serialized = json.dumps(payload.dict(), sort_keys=True)
+    digest = hashlib.sha256(serialized.encode()).hexdigest()
+
+
+
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -107,14 +256,118 @@ async def forward_to_openai(payload: ChatCompletionRequest):
         return resp.json()
 
 
+@app.post("/register")
+async def register_agent(payload: AgentRegistration) -> dict:
+    """Register a local agent and update the model registry."""
+
+    with get_session() as session:
+        upsert_agent(session, payload.name, payload.endpoint, payload.models)
+        for model in payload.models:
+            upsert_model(session, model, "local", payload.endpoint)
+    load_registry()
+    return {"status": "ok"}
+
+
+@app.post("/heartbeat")
+async def heartbeat(payload: AgentHeartbeat) -> dict:
+    """Update agent heartbeat timestamp."""
+
+    with get_session() as session:
+        update_heartbeat(session, payload.name)
+    return {"status": "ok"}
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
+
+    start = time.perf_counter()
+    backend = "dummy"
+    cache_hit = False
+    try:
+        entry = MODEL_REGISTRY.get(payload.model)
+
+        if entry is not None:
+            if entry.type == "local":
+                backend = "local"
+                return await forward_to_local_agent(payload)
+            if entry.type == "openai":
+                backend = "openai"
+                return await forward_to_openai(payload)
+
+        if payload.model.startswith("local"):
+            backend = "local"
+            return await forward_to_local_agent(payload)
+
+        if payload.model.startswith("gpt-"):
+            backend = "openai"
+            return await forward_to_openai(payload)
+
+        dummy_text = "Hello world"
+        response = {
+            "id": f"cmpl-{uuid.uuid4().hex}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": payload.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": dummy_text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            },
+        }
+        return response
+    finally:
+        latency = time.perf_counter() - start
+        REQUEST_COUNTER.labels(backend=backend).inc()
+        REQUEST_LATENCY.labels(backend=backend).observe(latency)
+        if cache_hit:
+            CACHE_HIT_COUNTER.labels(model=payload.model).inc()
+        logger.info(
+            "model=%s backend=%s latency=%.3f cache_hit=%s",
+            payload.model,
+            backend,
+            latency,
+            cache_hit,
+        )
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Expose Prometheus metrics."""
+
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+    backend = select_backend(payload)
+
+    if backend == "local":
+        return await forward_to_local_agent(payload)
+
+    if backend == "openai":
+        return await forward_to_openai(payload)
+
+    cache_key = make_cache_key(payload)
+    if not payload.stream:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
     entry = MODEL_REGISTRY.get(payload.model)
 
     if entry is not None:
         if entry.type == "local":
-            return await forward_to_local_agent(payload)
+            data = await forward_to_local_agent(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
         if entry.type == "openai":
+
             return await forward_to_openai(payload)
         if entry.type == "anthropic":
             return await anthropic.forward(
@@ -130,12 +383,25 @@ async def chat_completions(payload: ChatCompletionRequest):
             return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
         if entry.type == "venice":
             return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
+=======
+            data = await forward_to_openai(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+
 
     if payload.model.startswith("local"):
-        return await forward_to_local_agent(payload)
+        data = await forward_to_local_agent(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
 
     if payload.model.startswith("gpt-"):
-        return await forward_to_openai(payload)
+        data = await forward_to_openai(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
 
     dummy_text = "Hello world"
     response = {
@@ -156,4 +422,7 @@ async def chat_completions(payload: ChatCompletionRequest):
             "total_tokens": 0,
         },
     }
+    if not payload.stream:
+        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(response))
     return response
+
