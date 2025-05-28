@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
-from typing import AsyncIterator, List, Optional
+
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -17,6 +17,19 @@ from prometheus_client import (
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
+from typing import AsyncIterator, List, Optional, Dict
+
+import json
+import hashlib
+
+import redis.asyncio as redis
+
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from pydantic import BaseModel
 
 from .registry import ModelEntry, create_tables, get_session
@@ -26,6 +39,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_PATH = os.getenv("LOG_PATH", "logs/router.log")
 
@@ -45,9 +59,39 @@ REQUEST_LATENCY = Histogram(
     "router_request_latency_seconds",
     "Request latency in seconds",
     labelnames=["backend"],
-)
+
+CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
+
+redis_client = redis.from_url(REDIS_URL)
+
+RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
+RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+RATE_LIMIT_STATE: Dict[str, List[float]] = {}
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Simple in-memory rate limiter."""
+
+    async def dispatch(self, request: Request, call_next):
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window = RATE_LIMIT_WINDOW
+        max_req = RATE_LIMIT_REQUESTS
+
+        timestamps = RATE_LIMIT_STATE.get(client_ip, [])
+        timestamps = [t for t in timestamps if now - t < window]
+        if len(timestamps) >= max_req:
+            return JSONResponse({"detail": "Rate limit exceeded"}, status_code=429)
+
+        timestamps.append(now)
+        RATE_LIMIT_STATE[client_ip] = timestamps
+        response = await call_next(request)
+        return response
+
+
 
 app = FastAPI(title="Intelligent Inference Router")
+app.add_middleware(RateLimitMiddleware)
 
 MODEL_REGISTRY: dict[str, ModelEntry] = {}
 
@@ -90,6 +134,30 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
     stream: Optional[bool] = False
+
+
+
+def select_backend(payload: ChatCompletionRequest) -> str:
+    """Return backend key for the given request."""
+
+    entry = MODEL_REGISTRY.get(payload.model)
+    if entry is not None:
+        return entry.type
+
+    if payload.model.startswith("local"):
+        return "local"
+
+    if payload.model.startswith("gpt-"):
+        return "openai"
+
+    return "dummy"
+
+def make_cache_key(payload: ChatCompletionRequest) -> str:
+    """Return a Redis cache key for the given request."""
+
+    serialized = json.dumps(payload.dict(), sort_keys=True)
+    digest = hashlib.sha256(serialized.encode()).hexdigest()
+
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -146,6 +214,7 @@ async def forward_to_openai(payload: ChatCompletionRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(payload: ChatCompletionRequest):
+
     start = time.perf_counter()
     backend = "dummy"
     cache_hit = False
@@ -208,3 +277,69 @@ async def metrics() -> Response:
     """Expose Prometheus metrics."""
 
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+    backend = select_backend(payload)
+
+    if backend == "local":
+        return await forward_to_local_agent(payload)
+
+    if backend == "openai":
+        return await forward_to_openai(payload)
+
+    cache_key = make_cache_key(payload)
+    if not payload.stream:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+    entry = MODEL_REGISTRY.get(payload.model)
+
+    if entry is not None:
+        if entry.type == "local":
+            data = await forward_to_local_agent(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+        if entry.type == "openai":
+            data = await forward_to_openai(payload)
+            if not payload.stream:
+                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+            return data
+
+    if payload.model.startswith("local"):
+        data = await forward_to_local_agent(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
+    if payload.model.startswith("gpt-"):
+        data = await forward_to_openai(payload)
+        if not payload.stream:
+            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
+        return data
+
+
+    dummy_text = "Hello world"
+    response = {
+        "id": f"cmpl-{uuid.uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": payload.model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": dummy_text},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        },
+    }
+    if not payload.stream:
+        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(response))
+    return response
+
