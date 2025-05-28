@@ -15,7 +15,16 @@ from sqlalchemy.orm import (
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
 # Recognised model types for routing
-VALID_MODEL_TYPES = {"local", "openai", "llm-d"}
+VALID_MODEL_TYPES = {
+    "local",
+    "openai",
+    "llm-d",
+    "anthropic",
+    "google",
+    "openrouter",
+    "grok",
+    "venice",
+}
 
 
 class Base(DeclarativeBase):

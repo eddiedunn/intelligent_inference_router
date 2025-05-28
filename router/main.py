@@ -3,19 +3,35 @@ from __future__ import annotations
 import os
 import time
 import uuid
+
+import json
+import hashlib
+import logging
+from logging.handlers import TimedRotatingFileHandler
+from typing import List, Dict
+
 import tomllib
 from pathlib import Path
+
 
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse, JSONResponse
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from prometheus_client import (
     Counter,
     Histogram,
     CONTENT_TYPE_LATEST,
     generate_latest,
 )
+
+import redis.asyncio as redis
+
+from .utils import stream_resp
+
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
@@ -31,6 +47,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 
 from .utils import stream_resp
+
 
 from .schemas import ChatCompletionRequest
 
@@ -207,6 +224,24 @@ def select_backend(payload: ChatCompletionRequest) -> str:
         openai_score = ROUTER_LATENCY_WEIGHT * openai_lat + ROUTER_COST_WEIGHT * cost
         return "local" if local_score <= openai_score else "openai"
 
+    if payload.model.startswith("llmd-"):
+        return "llm-d"
+
+    if payload.model.startswith("claude"):
+        return "anthropic"
+
+    if payload.model.startswith("google"):
+        return "google"
+
+    if payload.model.startswith("openrouter"):
+        return "openrouter"
+
+    if payload.model.startswith("grok"):
+        return "grok"
+
+    if payload.model.startswith("venice"):
+        return "venice"
+
     return "dummy"
 
 
@@ -216,7 +251,11 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
     serialized = json.dumps(payload.dict(), sort_keys=True)
     digest = hashlib.sha256(serialized.encode()).hexdigest()
 
+    return digest
+
+
     return f"chat:{digest}"
+
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -291,6 +330,39 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
         except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
             raise HTTPException(status_code=502, detail="llm-d error") from exc
         return resp.json()
+
+
+
+async def forward_to_anthropic(payload: ChatCompletionRequest):
+    """Forward request to Anthropic."""
+
+    return await anthropic.forward(payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY)
+
+
+async def forward_to_google(payload: ChatCompletionRequest):
+    """Forward request to Google."""
+
+    return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
+
+
+async def forward_to_openrouter(payload: ChatCompletionRequest):
+    """Forward request to OpenRouter."""
+
+    return await openrouter.forward(
+        payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
+    )
+
+
+async def forward_to_grok(payload: ChatCompletionRequest):
+    """Forward request to Grok."""
+
+    return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
+
+
+async def forward_to_venice(payload: ChatCompletionRequest):
+    """Forward request to Venice."""
+
+    return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
 
 
 @app.post("/register")
