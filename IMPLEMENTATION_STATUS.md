@@ -19,6 +19,10 @@ This section tracks only the features required for the MVP release. Only items c
 - [x] Documentation Site with MkDocs
 
 
+### Testing
+- [x] Unit Tests
+- [x] Integration Tests
+
 ### Explicitly NOT in MVP
 - [x] Enable Redis Caching
 - [ ] Rate Limiting
