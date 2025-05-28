@@ -5,7 +5,7 @@ services:
     working_dir: /app
     volumes:
       - ./:/app
-      - ./data/models.db:/app/data/models.db
+      - sqlite_data:/app/data
     command: >
       sh -c "pip install -e . && uvicorn router.main:app --host 0.0.0.0 --port 8000"
     environment:
@@ -16,6 +16,8 @@ services:
       EXTERNAL_OPENAI_KEY: ${EXTERNAL_OPENAI_KEY}
     ports:
       - "8000:8000"
+    depends_on:
+      - redis
 
   local_agent:
     image: python:3.10-slim
@@ -26,10 +28,13 @@ services:
       sh -c "pip install -e . && uvicorn local_agent.main:app --host 0.0.0.0 --port 5000"
     ports:
       - "5000:5000"
+    profiles:
+      - darwin
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
 
-volumes: {}
+volumes:
+  sqlite_data:
