@@ -1,4 +1,18 @@
 site_name: Intelligent Inference Router
+site_url: https://example.github.io/intelligent_inference_router
 docs_dir: docs
 theme:
   name: material
+  language: en
+  palette:
+    scheme: default
+    primary: indigo
+    accent: indigo
+nav:
+  - Home: index.md
+  - Product Requirements: ../PRD.md
+  - Feature Checklist: FEATURES.md
+  - Setup: setup.md
+  - Usage: usage.md
+  - API Examples: api_examples.md
+  - Router API: router_api.md
