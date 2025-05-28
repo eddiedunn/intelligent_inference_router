@@ -79,6 +79,9 @@ VENICE_BASE_URL=https://api.venice.ai
 EXTERNAL_VENICE_KEY=...
 ```
 
+For OpenRouter, both `OPENROUTER_BASE_URL` and `EXTERNAL_OPENROUTER_KEY` must be
+set before the router can forward requests to the service.
+
 Set the relevant keys before starting the server. Models for each provider must
 be added to the registry using `router.cli add-model` or `refresh-openai` for
 OpenAI.

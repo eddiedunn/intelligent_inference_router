@@ -95,6 +95,7 @@ REQUEST_LATENCY = Histogram(
     "router_request_latency_seconds",
     "Request latency in seconds",
     labelnames=["backend"],
+)
 
 CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
 
