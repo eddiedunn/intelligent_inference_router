@@ -6,12 +6,15 @@
 
 ## MVP Support Summary
 
-This API currently supports the following for the MVP:
+This API currently supports the following:
 - OpenAI-compatible endpoint: `/v1/chat/completions`
 - Local agent forwarding (only vllm, Docker-based workers)
-- Proxying to OpenAI (no other providers yet)
+- Proxying to OpenAI
+- Forwarding to additional providers: Anthropic, Google, OpenRouter, Grok, Venice
+
 
 **Note:** Features such as rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice) are planned for post-MVP.
+
 
 ---
 
@@ -56,6 +59,30 @@ uvicorn local_agent.main:app --port 5000
 
 The router relays the agent's JSON response back to the client.
 
+### Configuration
+
+The router reads API keys for each provider from environment variables. A sample
+`.env` file might look like:
+
+```bash
+OPENAI_BASE_URL=https://api.openai.com
+EXTERNAL_OPENAI_KEY=sk-...
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+EXTERNAL_ANTHROPIC_KEY=...
+GOOGLE_BASE_URL=https://generativelanguage.googleapis.com
+EXTERNAL_GOOGLE_KEY=...
+OPENROUTER_BASE_URL=https://openrouter.ai
+EXTERNAL_OPENROUTER_KEY=...
+GROK_BASE_URL=https://api.groq.com
+EXTERNAL_GROK_KEY=...
+VENICE_BASE_URL=https://api.venice.ai
+EXTERNAL_VENICE_KEY=...
+```
+
+Set the relevant keys before starting the server. Models for each provider must
+be added to the registry using `router.cli add-model` or `refresh-openai` for
+OpenAI.
+
 ### Agent Registration & Heartbeats
 
 Agents announce themselves to the router using the `/register` and `/heartbeat`
@@ -86,6 +113,7 @@ Set `REDIS_URL` to point to your Redis instance and `CACHE_TTL` to the desired
 expiration (in seconds). When a request is received, the router checks Redis for
 a cached response before forwarding to a backend. Non-streaming responses are
 stored in Redis using the TTL.
+
 
 ---
 

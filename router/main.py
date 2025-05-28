@@ -5,6 +5,7 @@ import time
 import uuid
 
 
+
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response, StreamingResponse
@@ -30,7 +31,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+
+from .utils import stream_resp
+
+from fastapi import FastAPI
+from .schemas import ChatCompletionRequest
+from .providers import anthropic, google, openrouter, grok, venice
+
 from pydantic import BaseModel
+
 
 from .registry import (
     ModelEntry,
@@ -46,6 +55,24 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
+
+
+ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+EXTERNAL_ANTHROPIC_KEY = os.getenv("EXTERNAL_ANTHROPIC_KEY")
+
+GOOGLE_BASE_URL = os.getenv(
+    "GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com"
+)
+EXTERNAL_GOOGLE_KEY = os.getenv("EXTERNAL_GOOGLE_KEY")
+
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai")
+EXTERNAL_OPENROUTER_KEY = os.getenv("EXTERNAL_OPENROUTER_KEY")
+
+GROK_BASE_URL = os.getenv("GROK_BASE_URL", "https://api.groq.com")
+EXTERNAL_GROK_KEY = os.getenv("EXTERNAL_GROK_KEY")
+
+VENICE_BASE_URL = os.getenv("VENICE_BASE_URL", "https://api.venice.ai")
+EXTERNAL_VENICE_KEY = os.getenv("EXTERNAL_VENICE_KEY")
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_PATH = os.getenv("LOG_PATH", "logs/router.log")
@@ -97,6 +124,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 
+
 app = FastAPI(title="Intelligent Inference Router")
 app.add_middleware(RateLimitMiddleware)
 
@@ -128,6 +156,7 @@ async def _startup() -> None:
     logger.setLevel(LOG_LEVEL.upper())
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
+
 
 
 class Message(BaseModel):
@@ -179,6 +208,7 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
 
 
 
+
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
     async with httpx.AsyncClient(base_url=LOCAL_AGENT_URL) as client:
         resp = await client.post("/infer", json=payload.dict())
@@ -187,11 +217,6 @@ async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
         except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
             raise HTTPException(status_code=502, detail="Local agent error") from exc
         return resp.json()
-
-
-async def _stream_resp(resp: httpx.Response) -> AsyncIterator[str]:
-    async for chunk in resp.aiter_text():
-        yield chunk
 
 
 async def forward_to_openai(payload: ChatCompletionRequest):
@@ -215,7 +240,7 @@ async def forward_to_openai(payload: ChatCompletionRequest):
                 raise HTTPException(
                     status_code=502, detail="External provider error"
                 ) from exc
-            return StreamingResponse(_stream_resp(resp), media_type="text/event-stream")
+            return StreamingResponse(stream_resp(resp), media_type="text/event-stream")
 
         resp = await client.post(
             "/v1/chat/completions",
@@ -342,10 +367,28 @@ async def metrics() -> Response:
                 await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
             return data
         if entry.type == "openai":
+
+            return await forward_to_openai(payload)
+        if entry.type == "anthropic":
+            return await anthropic.forward(
+                payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY
+            )
+        if entry.type == "google":
+            return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
+        if entry.type == "openrouter":
+            return await openrouter.forward(
+                payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
+            )
+        if entry.type == "grok":
+            return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
+        if entry.type == "venice":
+            return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
+=======
             data = await forward_to_openai(payload)
             if not payload.stream:
                 await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
             return data
+
 
     if payload.model.startswith("local"):
         data = await forward_to_local_agent(payload)
