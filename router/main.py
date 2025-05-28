@@ -3,38 +3,25 @@ from __future__ import annotations
 import os
 import time
 import uuid
-
-
+import json
+import hashlib
+import logging
+from logging.handlers import TimedRotatingFileHandler
+from typing import List, Dict
 
 import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response, StreamingResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from prometheus_client import (
     Counter,
     Histogram,
     CONTENT_TYPE_LATEST,
     generate_latest,
 )
-import logging
-from logging.handlers import TimedRotatingFileHandler
-
-from typing import AsyncIterator, List, Optional, Dict
-
-import json
-import hashlib
-
 import redis.asyncio as redis
 
-
-import httpx
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-
-
 from .utils import stream_resp
-
-from fastapi import FastAPI
 from .schemas import ChatCompletionRequest
 from .providers import anthropic, google, openrouter, grok, venice
 
@@ -95,6 +82,7 @@ REQUEST_LATENCY = Histogram(
     "router_request_latency_seconds",
     "Request latency in seconds",
     labelnames=["backend"],
+)
 
 CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
 
@@ -123,8 +111,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         RATE_LIMIT_STATE[client_ip] = timestamps
         response = await call_next(request)
         return response
-
-
 
 
 app = FastAPI(title="Intelligent Inference Router")
@@ -160,22 +146,6 @@ async def _startup() -> None:
     logger.addHandler(stream_handler)
 
 
-
-class Message(BaseModel):
-    role: str
-    content: str
-
-
-class ChatCompletionRequest(BaseModel):
-    model: str
-    messages: List[Message]
-    max_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-    stream: Optional[bool] = False
-
-
-
-
 class AgentRegistration(BaseModel):
     name: str
     endpoint: str
@@ -184,6 +154,7 @@ class AgentRegistration(BaseModel):
 
 class AgentHeartbeat(BaseModel):
     name: str
+
 
 def select_backend(payload: ChatCompletionRequest) -> str:
     """Return backend key for the given request."""
@@ -198,6 +169,24 @@ def select_backend(payload: ChatCompletionRequest) -> str:
     if payload.model.startswith("gpt-"):
         return "openai"
 
+    if payload.model.startswith("llmd-"):
+        return "llm-d"
+
+    if payload.model.startswith("claude"):
+        return "anthropic"
+
+    if payload.model.startswith("google"):
+        return "google"
+
+    if payload.model.startswith("openrouter"):
+        return "openrouter"
+
+    if payload.model.startswith("grok"):
+        return "grok"
+
+    if payload.model.startswith("venice"):
+        return "venice"
+
     return "dummy"
 
 
@@ -206,9 +195,7 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
 
     serialized = json.dumps(payload.dict(), sort_keys=True)
     digest = hashlib.sha256(serialized.encode()).hexdigest()
-
-
-
+    return digest
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -258,7 +245,6 @@ async def forward_to_openai(payload: ChatCompletionRequest):
         return resp.json()
 
 
-
 async def forward_to_llmd(payload: ChatCompletionRequest):
     """Forward request to the llm-d cluster."""
 
@@ -276,7 +262,7 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
                 resp.raise_for_status()
             except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
                 raise HTTPException(status_code=502, detail="llm-d error") from exc
-            return StreamingResponse(_stream_resp(resp), media_type="text/event-stream")
+            return StreamingResponse(stream_resp(resp), media_type="text/event-stream")
 
         resp = await client.post("/v1/chat/completions", json=payload.dict())
         try:
@@ -284,6 +270,39 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
         except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
             raise HTTPException(status_code=502, detail="llm-d error") from exc
         return resp.json()
+
+
+async def forward_to_anthropic(payload: ChatCompletionRequest):
+    """Forward request to Anthropic."""
+
+    return await anthropic.forward(payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY)
+
+
+async def forward_to_google(payload: ChatCompletionRequest):
+    """Forward request to Google."""
+
+    return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
+
+
+async def forward_to_openrouter(payload: ChatCompletionRequest):
+    """Forward request to OpenRouter."""
+
+    return await openrouter.forward(
+        payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
+    )
+
+
+async def forward_to_grok(payload: ChatCompletionRequest):
+    """Forward request to Grok."""
+
+    return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
+
+
+async def forward_to_venice(payload: ChatCompletionRequest):
+    """Forward request to Venice."""
+
+    return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
+
 
 @app.post("/register")
 async def register_agent(payload: AgentRegistration) -> dict:
@@ -304,7 +323,6 @@ async def heartbeat(payload: AgentHeartbeat) -> dict:
     with get_session() as session:
         update_heartbeat(session, payload.name)
     return {"status": "ok"}
-
 
 
 @app.post("/v1/chat/completions")
@@ -372,94 +390,3 @@ async def metrics() -> Response:
     """Expose Prometheus metrics."""
 
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-    backend = select_backend(payload)
-
-    if backend == "local":
-        return await forward_to_local_agent(payload)
-
-    if backend == "openai":
-        return await forward_to_openai(payload)
-
-    cache_key = make_cache_key(payload)
-    if not payload.stream:
-        cached = await redis_client.get(cache_key)
-        if cached:
-            return json.loads(cached)
-
-    entry = MODEL_REGISTRY.get(payload.model)
-
-    if entry is not None:
-        if entry.type == "local":
-            data = await forward_to_local_agent(payload)
-            if not payload.stream:
-                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
-            return data
-        if entry.type == "openai":
-
-            return await forward_to_openai(payload)
-
-        if entry.type == "llm-d":
-            return await forward_to_llmd(payload)
-
-        if entry.type == "anthropic":
-            return await anthropic.forward(
-                payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY
-            )
-        if entry.type == "google":
-            return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
-        if entry.type == "openrouter":
-            return await openrouter.forward(
-                payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
-            )
-        if entry.type == "grok":
-            return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
-        if entry.type == "venice":
-            return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
-
-            data = await forward_to_openai(payload)
-            if not payload.stream:
-                await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
-            return data
-
-
-    if payload.model.startswith("local"):
-        data = await forward_to_local_agent(payload)
-        if not payload.stream:
-            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
-        return data
-
-    if payload.model.startswith("gpt-"):
-        data = await forward_to_openai(payload)
-        if not payload.stream:
-            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
-        return data
-
-
-    if payload.model.startswith("llmd-"):
-        return await forward_to_llmd(payload)
-
-    dummy_text = "Hello world"
-    response = {
-        "id": f"cmpl-{uuid.uuid4().hex}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": payload.model,
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": dummy_text},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-        },
-    }
-    if not payload.stream:
-        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(response))
-    return response
-

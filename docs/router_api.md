@@ -83,6 +83,9 @@ Set the relevant keys before starting the server. Models for each provider must
 be added to the registry using `router.cli add-model` or `refresh-openai` for
 OpenAI.
 
+Valid model types are `local`, `openai`, `llm-d`, `anthropic`, `google`,
+`openrouter`, `grok`, and `venice`.
+
 ### Agent Registration & Heartbeats
 
 Agents announce themselves to the router using the `/register` and `/heartbeat`
