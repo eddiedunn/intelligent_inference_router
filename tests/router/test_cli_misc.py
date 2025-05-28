@@ -15,13 +15,13 @@ def test_migrate_invokes_create_tables(monkeypatch):
     called = {}
 
     def fake_create_tables():
-        called['yes'] = True
+        called["yes"] = True
 
     monkeypatch.setattr(cli, "create_tables", fake_create_tables)
     runner = CliRunner()
     result = runner.invoke(cli.app, ["migrate"])
     assert result.exit_code == 0
-    assert called.get('yes')
+    assert called.get("yes")
 
 
 def test_seed_reads_file(monkeypatch, tmp_path):

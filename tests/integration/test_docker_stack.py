@@ -15,7 +15,12 @@ if shutil.which("docker") is None:
 async def docker_stack():
     compose_file = ROOT / "docker-compose.yml"
     up = await asyncio.create_subprocess_exec(
-        "docker", "compose", "-f", str(compose_file), "up", "-d",
+        "docker",
+        "compose",
+        "-f",
+        str(compose_file),
+        "up",
+        "-d",
         cwd=str(ROOT),
     )
     await up.communicate()
@@ -25,7 +30,10 @@ async def docker_stack():
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     "http://localhost:8000/v1/chat/completions",
-                    json={"model": "local_test", "messages": [{"role": "user", "content": "hi"}]},
+                    json={
+                        "model": "local_test",
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
                     timeout=1,
                 )
             if resp.status_code == 200:
@@ -34,7 +42,12 @@ async def docker_stack():
             await asyncio.sleep(1)
     yield
     down = await asyncio.create_subprocess_exec(
-        "docker", "compose", "-f", str(compose_file), "down", "-v",
+        "docker",
+        "compose",
+        "-f",
+        str(compose_file),
+        "down",
+        "-v",
         cwd=str(ROOT),
     )
     await down.communicate()
@@ -45,7 +58,10 @@ async def test_stack_basic(docker_stack):
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             "http://localhost:8000/v1/chat/completions",
-            json={"model": "local_test", "messages": [{"role": "user", "content": "ping"}]},
+            json={
+                "model": "local_test",
+                "messages": [{"role": "user", "content": "ping"}],
+            },
         )
     assert resp.status_code == 200
     data = resp.json()

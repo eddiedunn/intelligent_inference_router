@@ -15,7 +15,9 @@ async def forward(payload: ChatCompletionRequest, base_url: str, api_key: str | 
 
     headers = {"Authorization": f"Bearer {api_key}"}
     async with httpx.AsyncClient(base_url=base_url) as client:
-        path = "/v1/chat/completions"
+        # Groq exposes an OpenAI-compatible endpoint under the `/openai` prefix
+        # so we must include it when forwarding requests.
+        path = "/openai/v1/chat/completions"
         if payload.stream:
             resp = await client.post(  # type: ignore[call-arg]
                 path, json=payload.dict(), headers=headers, stream=True

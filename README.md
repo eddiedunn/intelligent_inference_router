@@ -38,7 +38,9 @@ Key environment variables:
 
 - `RATE_LIMIT_REQUESTS` – maximum requests per client within the window
 - `RATE_LIMIT_WINDOW` – window size in seconds for rate limiting
-=======
+- `GROK_BASE_URL` – base URL for the Grok API
+- `EXTERNAL_GROK_KEY` – API key for Grok
+
 On macOS you may also run the Local Agent container by enabling the `darwin`
 profile:
 
