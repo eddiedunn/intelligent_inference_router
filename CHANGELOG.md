@@ -4,6 +4,10 @@
 
 ---
 
+## [Unreleased]
+### Added
+- Redis caching layer with TTL (`REDIS_URL`, `CACHE_TTL`)
+
 ## [MVP Release]
 ### Added
 - OpenAI-compatible API endpoint (`/v1/chat/completions`)
@@ -15,7 +19,6 @@
 - MkDocs documentation site with GitHub Pages
 
 ### Not included in MVP (deferred):
-- Redis caching
 - Rate limiting
 - Smart routing
 - Request logging and metrics
@@ -27,7 +30,6 @@
 ---
 
 ## [Planned/Upcoming]
-- Redis caching layer
 - Rate limiting
 - Smart routing
 - Request logging and metrics
