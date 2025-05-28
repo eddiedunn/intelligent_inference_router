@@ -46,7 +46,7 @@ This section tracks features, integrations, and improvements to be implemented a
 - Additional inference worker types (llm-d)
 
 ## Planned Provider Integrations (Post-MVP)
-- Anthropic
+- [x] Anthropic
 - Google
 - OpenRouter
 - Grok
