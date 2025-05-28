@@ -65,11 +65,12 @@ python -m router.cli refresh-openai
 
 This project uses [MkDocs](https://www.mkdocs.org/) with the
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+Key pages include `setup.md`, `usage.md` and `api_examples.md` under `docs/`.
 Start a live preview with:
 
 ```bash
 make docs-serve
 ```
 
-CI builds the site using `mkdocs build` and deploys the generated `site/`
-directory to GitHub Pages.
+CI builds the site using `mkdocs build` and a dedicated workflow deploys the
+generated `site/` directory to GitHub Pages.

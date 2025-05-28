@@ -16,7 +16,7 @@ This section tracks only the features required for the MVP release. Only items c
 ### Shared / Infra
 - [ ] Docker Compose for Dev Stack
 - [ ] Continuous Integration Workflow
-- [ ] Documentation Site with MkDocs
+- [x] Documentation Site with MkDocs
 
 ### Explicitly NOT in MVP
 - [ ] Enable Redis Caching
