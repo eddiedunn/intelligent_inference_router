@@ -24,8 +24,10 @@ This section tracks only the features required for the MVP release. Only items c
 - [x] Integration Tests
 
 ### Explicitly NOT in MVP
+
 - [x] Enable Redis Caching
-- [ ] Rate Limiting
+- [x] Rate Limiting
+
 - [ ] Smart Routing
 - [ ] Add Request Logging and Metrics
 - [x] Register Agent with Router
