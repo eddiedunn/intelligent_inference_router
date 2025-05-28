@@ -60,7 +60,8 @@ This section tracks features, integrations, and improvements to be implemented a
 ## Planned Provider Integrations (Post-MVP)
 - [x] Anthropic
 - [x] Google
-- OpenRouter
+- [x] OpenRouter
+
 - Grok
 - Venice
 
