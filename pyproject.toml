@@ -19,3 +19,8 @@ redis = "^5.0"
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.router]
+cost_weight = 1.0
+latency_weight = 1.0
+cost_threshold = 1000
