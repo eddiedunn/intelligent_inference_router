@@ -33,6 +33,12 @@ Start the stack with:
 make docker-dev
 ```
 
+Copy `.env.example` to `.env` and adjust the values if needed.
+Key environment variables:
+
+- `RATE_LIMIT_REQUESTS` – maximum requests per client within the window
+- `RATE_LIMIT_WINDOW` – window size in seconds for rate limiting
+=======
 On macOS you may also run the Local Agent container by enabling the `darwin`
 profile:
 
@@ -43,6 +49,7 @@ COMPOSE_PROFILES=darwin make docker-dev
 Press `Ctrl+C` to stop the services; the `docker-dev` target will automatically
 remove the containers. Copy `.env.example` to `.env` and adjust the values if
 needed.
+
 
 Run the unit tests with coverage enabled using:
 
