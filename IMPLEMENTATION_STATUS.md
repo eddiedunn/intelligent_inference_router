@@ -30,8 +30,9 @@ This section tracks only the features required for the MVP release. Only items c
 
 - [ ] Smart Routing
 - [x] Add Request Logging and Metrics
-- [ ] Register Agent with Router
-- [ ] Send Periodic Heartbeats
+- [x] Register Agent with Router
+- [x] Send Periodic Heartbeats
+
 - [ ] Forward to llm-d Cluster
 - [ ] Deploy llm-d via Helm
 - [ ] Expose Cluster Endpoint to Router
