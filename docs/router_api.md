@@ -56,6 +56,28 @@ uvicorn local_agent.main:app --port 5000
 
 The router relays the agent's JSON response back to the client.
 
+### Agent Registration & Heartbeats
+
+Agents announce themselves to the router using the `/register` and `/heartbeat`
+endpoints. A registration payload has the form:
+
+```json
+{
+  "name": "local-agent",
+  "endpoint": "http://localhost:5000",
+  "models": ["local_mistral-7b-instruct-q4"]
+}
+```
+
+After registration, agents should periodically `POST` to `/heartbeat` with
+
+```json
+{"name": "local-agent"}
+```
+
+The router stores this data in SQLite and updates the model registry
+accordingly.
+
 ---
 
 ## Post-MVP Roadmap

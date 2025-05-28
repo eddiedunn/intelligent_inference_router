@@ -10,6 +10,7 @@
 - Local agent forwarding (vllm, Docker-based only)
 - Proxy to OpenAI provider
 - SQLite-based model registry with CLI
+- Agent registration & heartbeat endpoints
 - Initial Docker Compose/dev stack setup (in progress)
 - CI workflow (in progress)
 - MkDocs documentation site (in progress)
@@ -19,7 +20,6 @@
 - Rate limiting
 - Smart routing
 - Request logging and metrics
-- Agent registration & heartbeats
 - llm-d cluster support (Kubernetes, Helm)
 - Additional inference worker types (llm-d)
 - Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice
@@ -31,7 +31,6 @@
 - Rate limiting
 - Smart routing
 - Request logging and metrics
-- Agent registration & heartbeats
 - llm-d cluster support (forwarding, deployment, endpoint exposure)
 - Additional inference worker types (llm-d)
 - Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice

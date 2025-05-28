@@ -12,7 +12,14 @@ from fastapi.responses import StreamingResponse
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from .registry import ModelEntry, create_tables, get_session
+from .registry import (
+    ModelEntry,
+    create_tables,
+    get_session,
+    upsert_agent,
+    upsert_model,
+    update_heartbeat,
+)
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -51,6 +58,16 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
     stream: Optional[bool] = False
+
+
+class AgentRegistration(BaseModel):
+    name: str
+    endpoint: str
+    models: List[str]
+
+
+class AgentHeartbeat(BaseModel):
+    name: str
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -103,6 +120,27 @@ async def forward_to_openai(payload: ChatCompletionRequest):
                 status_code=502, detail="External provider error"
             ) from exc
         return resp.json()
+
+
+@app.post("/register")
+async def register_agent(payload: AgentRegistration) -> dict:
+    """Register a local agent and update the model registry."""
+
+    with get_session() as session:
+        upsert_agent(session, payload.name, payload.endpoint, payload.models)
+        for model in payload.models:
+            upsert_model(session, model, "local", payload.endpoint)
+    load_registry()
+    return {"status": "ok"}
+
+
+@app.post("/heartbeat")
+async def heartbeat(payload: AgentHeartbeat) -> dict:
+    """Update agent heartbeat timestamp."""
+
+    with get_session() as session:
+        update_heartbeat(session, payload.name)
+    return {"status": "ok"}
 
 
 @app.post("/v1/chat/completions")
