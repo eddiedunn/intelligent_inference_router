@@ -5,7 +5,6 @@ import time
 import uuid
 
 
-
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response, StreamingResponse
@@ -95,6 +94,7 @@ REQUEST_LATENCY = Histogram(
     "router_request_latency_seconds",
     "Request latency in seconds",
     labelnames=["backend"],
+)
 
 CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
 
@@ -123,8 +123,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         RATE_LIMIT_STATE[client_ip] = timestamps
         response = await call_next(request)
         return response
-
-
 
 
 app = FastAPI(title="Intelligent Inference Router")
@@ -160,7 +158,6 @@ async def _startup() -> None:
     logger.addHandler(stream_handler)
 
 
-
 class Message(BaseModel):
     role: str
     content: str
@@ -174,8 +171,6 @@ class ChatCompletionRequest(BaseModel):
     stream: Optional[bool] = False
 
 
-
-
 class AgentRegistration(BaseModel):
     name: str
     endpoint: str
@@ -184,6 +179,7 @@ class AgentRegistration(BaseModel):
 
 class AgentHeartbeat(BaseModel):
     name: str
+
 
 def select_backend(payload: ChatCompletionRequest) -> str:
     """Return backend key for the given request."""
@@ -206,9 +202,6 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
 
     serialized = json.dumps(payload.dict(), sort_keys=True)
     digest = hashlib.sha256(serialized.encode()).hexdigest()
-
-
-
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
@@ -258,7 +251,6 @@ async def forward_to_openai(payload: ChatCompletionRequest):
         return resp.json()
 
 
-
 async def forward_to_llmd(payload: ChatCompletionRequest):
     """Forward request to the llm-d cluster."""
 
@@ -285,6 +277,7 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
             raise HTTPException(status_code=502, detail="llm-d error") from exc
         return resp.json()
 
+
 @app.post("/register")
 async def register_agent(payload: AgentRegistration) -> dict:
     """Register a local agent and update the model registry."""
@@ -304,7 +297,6 @@ async def heartbeat(payload: AgentHeartbeat) -> dict:
     with get_session() as session:
         update_heartbeat(session, payload.name)
     return {"status": "ok"}
-
 
 
 @app.post("/v1/chat/completions")
@@ -373,7 +365,6 @@ async def metrics() -> Response:
 
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-
     backend = select_backend(payload)
 
     if backend == "local":
@@ -423,7 +414,6 @@ async def metrics() -> Response:
                 await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
             return data
 
-
     if payload.model.startswith("local"):
         data = await forward_to_local_agent(payload)
         if not payload.stream:
@@ -435,7 +425,6 @@ async def metrics() -> Response:
         if not payload.stream:
             await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
         return data
-
 
     if payload.model.startswith("llmd-"):
         return await forward_to_llmd(payload)
@@ -462,4 +451,3 @@ async def metrics() -> Response:
     if not payload.stream:
         await redis_client.setex(cache_key, CACHE_TTL, json.dumps(response))
     return response
-
