@@ -30,8 +30,8 @@ def test_seed_reads_file(monkeypatch, tmp_path):
 
     calls = []
 
-    def fake_upsert(session, name, type, endpoint):
-        calls.append((name, type, endpoint))
+    def fake_upsert(session, name, type, endpoint, kind="api"):
+        calls.append((name, type, endpoint, kind))
 
     monkeypatch.setattr(cli, "get_session", lambda: DummySession())
     monkeypatch.setattr(cli, "upsert_model", fake_upsert)
@@ -39,22 +39,22 @@ def test_seed_reads_file(monkeypatch, tmp_path):
     runner = CliRunner()
     result = runner.invoke(cli.app, ["seed", str(data_file)])
     assert result.exit_code == 0
-    assert calls == [("a", "t", "e")]
+    assert calls == [("a", "t", "e", "api")]
 
 
 def test_add_model(monkeypatch):
     calls = []
 
-    def fake_upsert(session, name, type, endpoint):
-        calls.append((name, type, endpoint))
+    def fake_upsert(session, name, type, endpoint, kind="api"):
+        calls.append((name, type, endpoint, kind))
 
     monkeypatch.setattr(cli, "get_session", lambda: DummySession())
     monkeypatch.setattr(cli, "upsert_model", fake_upsert)
 
     runner = CliRunner()
-    result = runner.invoke(cli.app, ["add-model", "foo", "local", "http://x"])
+    result = runner.invoke(cli.app, ["add-model", "foo", "local", "http://x", "weight"])
     assert result.exit_code == 0
-    assert calls == [("foo", "local", "http://x")]
+    assert calls == [("foo", "local", "http://x", "weight")]
 
 
 def test_add_model_invalid_type(monkeypatch):

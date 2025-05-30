@@ -40,7 +40,7 @@ def test_forward_to_openai(monkeypatch, tmp_path) -> None:
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
     registry.create_tables()
     with registry.get_session() as session:
-        registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused")
+        registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused", "api")
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=external_app)

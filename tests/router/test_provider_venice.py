@@ -40,7 +40,7 @@ def test_forward_to_venice(monkeypatch, tmp_path) -> None:
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
     registry.create_tables()
     with registry.get_session() as session:
-        registry.upsert_model(session, "venus-1", "venice", "unused")
+        registry.upsert_model(session, "venus-1", "venice", "unused", "api")
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=venice_app)

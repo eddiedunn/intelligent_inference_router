@@ -17,7 +17,7 @@ def init_db(tmp_path):
 def test_select_backend_registry(monkeypatch, tmp_path):
     init_db(tmp_path)
     with registry.get_session() as session:
-        registry.upsert_model(session, "gpt-test", "openai", "unused")
+        registry.upsert_model(session, "gpt-test", "openai", "unused", "api")
     router_main.load_registry()
     payload = router_main.ChatCompletionRequest(model="gpt-test", messages=[])
     assert router_main.select_backend(payload) == "openai"

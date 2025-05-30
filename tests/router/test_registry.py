@@ -18,16 +18,18 @@ def test_registry_crud(tmp_path) -> None:
     init_test_db(tmp_path)
 
     with registry.get_session() as session:
-        registry.upsert_model(session, "model-a", "local", "http://a")
+        registry.upsert_model(session, "model-a", "local", "http://a", "weight")
 
     with registry.get_session() as session:
         models = registry.list_models(session)
         assert models[0].name == "model-a"
         assert models[0].endpoint == "http://a"
+        assert models[0].kind == "weight"
 
     with registry.get_session() as session:
-        registry.upsert_model(session, "model-a", "local", "http://b")
+        registry.upsert_model(session, "model-a", "local", "http://b", "weight")
 
     with registry.get_session() as session:
         model = registry.list_models(session)[0]
         assert model.endpoint == "http://b"
+        assert model.kind == "weight"
