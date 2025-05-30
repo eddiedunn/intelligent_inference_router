@@ -1,4 +1,4 @@
-from . import anthropic, google, openrouter, grok, venice
+from . import anthropic, google, openrouter, grok, venice, openai
 from .base import ApiProvider, WeightProvider
 
 __all__ = [
@@ -9,4 +9,5 @@ __all__ = [
     "openrouter",
     "grok",
     "venice",
+    "openai",
 ]

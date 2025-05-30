@@ -30,6 +30,7 @@ from prometheus_client import (
 import redis.asyncio as redis
 
 from .utils import stream_resp
+from .providers import openai, anthropic, google, openrouter, grok, venice
 
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -282,38 +283,7 @@ async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
 async def forward_to_openai(payload: ChatCompletionRequest):
     """Forward request to the OpenAI API."""
 
-    if EXTERNAL_OPENAI_KEY is None:
-        raise HTTPException(status_code=500, detail="OpenAI key not configured")
-
-    headers = {"Authorization": f"Bearer {EXTERNAL_OPENAI_KEY}"}
-    async with httpx.AsyncClient(base_url=OPENAI_BASE_URL) as client:
-        if payload.stream:
-            resp = await client.post(  # type: ignore[call-arg]
-                "/v1/chat/completions",
-                json=payload.dict(),
-                headers=headers,
-                stream=True,
-            )
-            try:
-                resp.raise_for_status()
-            except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
-                raise HTTPException(
-                    status_code=502, detail="External provider error"
-                ) from exc
-            return StreamingResponse(stream_resp(resp), media_type="text/event-stream")
-
-        resp = await client.post(
-            "/v1/chat/completions",
-            json=payload.dict(),
-            headers=headers,
-        )
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:  # coverage: ignore  -- best-effort
-            raise HTTPException(
-                status_code=502, detail="External provider error"
-            ) from exc
-        return resp.json()
+    return await openai.forward(payload, OPENAI_BASE_URL, EXTERNAL_OPENAI_KEY)
 
 
 async def forward_to_llmd(payload: ChatCompletionRequest):
