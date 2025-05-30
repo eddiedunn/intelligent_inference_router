@@ -63,6 +63,7 @@ This section tracks features, integrations, and improvements to be implemented a
 - [x] OpenRouter
 - [x] Grok
 - [x] Venice
+- [ ] Hugging Face
 
 
 ---

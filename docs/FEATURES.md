@@ -61,6 +61,7 @@ Features and integrations planned for after the MVP:
   - OpenRouter
   - Grok
   - Venice
+  - Hugging Face
 
 ---
 
