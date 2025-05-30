@@ -6,37 +6,49 @@ from fastapi.responses import StreamingResponse
 
 from ..schemas import ChatCompletionRequest
 from ..utils import stream_resp
+from .base import ApiProvider
 
 
-async def forward(payload: ChatCompletionRequest, base_url: str, api_key: str | None):
-    """Forward request to Google."""
-    if api_key is None:
-        raise HTTPException(status_code=500, detail="Google key not configured")
+class GoogleProvider(ApiProvider):
+    """Provider wrapper for the Google API."""
 
-    model = payload.model
-    path = f"/v1beta/models/{model}:generateContent"
-    if payload.stream:
-        path = f"/v1beta/models/{model}:streamGenerateContent"
+    async def forward(
+        self, payload: ChatCompletionRequest, base_url: str, api_key: str | None
+    ):
+        """Forward request to Google."""
+        if api_key is None:
+            raise HTTPException(status_code=500, detail="Google key not configured")
 
-    params = {"key": api_key}
-    async with httpx.AsyncClient(base_url=base_url) as client:
+        model = payload.model
+        path = f"/v1beta/models/{model}:generateContent"
         if payload.stream:
-            resp = await client.post(  # type: ignore[call-arg]
-                path, json=payload.dict(), params=params, stream=True
-            )
+            path = f"/v1beta/models/{model}:streamGenerateContent"
+
+        params = {"key": api_key}
+        async with httpx.AsyncClient(base_url=base_url) as client:
+            if payload.stream:
+                resp = await client.post(  # type: ignore[call-arg]
+                    path, json=payload.dict(), params=params, stream=True
+                )
+                try:
+                    resp.raise_for_status()
+                except httpx.HTTPError as exc:  # coverage: ignore
+                    raise HTTPException(
+                        status_code=502, detail="External provider error"
+                    ) from exc
+                return StreamingResponse(stream_resp(resp), media_type="text/event-stream")
+
+            resp = await client.post(path, json=payload.dict(), params=params)
             try:
                 resp.raise_for_status()
             except httpx.HTTPError as exc:  # coverage: ignore
                 raise HTTPException(
                     status_code=502, detail="External provider error"
                 ) from exc
-            return StreamingResponse(stream_resp(resp), media_type="text/event-stream")
+            return resp.json()
 
-        resp = await client.post(path, json=payload.dict(), params=params)
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:  # coverage: ignore
-            raise HTTPException(
-                status_code=502, detail="External provider error"
-            ) from exc
-        return resp.json()
+
+async def forward(payload: ChatCompletionRequest, base_url: str, api_key: str | None):
+    """Backward compatible wrapper for ``GoogleProvider``."""
+    provider = GoogleProvider()
+    return await provider.forward(payload, base_url, api_key)
