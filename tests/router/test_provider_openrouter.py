@@ -10,8 +10,6 @@ openrouter_app = FastAPI()
 
 
 @openrouter_app.post("/api/v1/chat/completions")
-
-
 async def _completions(payload: router_main.ChatCompletionRequest):
 
     user_msg = payload.messages[-1].content if payload.messages else ""
@@ -44,9 +42,9 @@ def test_forward_to_openrouter(monkeypatch, tmp_path) -> None:
     registry.create_tables()
     with registry.get_session() as session:
 
-        registry.upsert_model(session, "orc-1", "openrouter", "unused")
+        registry.upsert_model(session, "orc-1", "openrouter", "unused", "api")
 
-        registry.upsert_model(session, "mixtral-8x7b", "openrouter", "unused")
+        registry.upsert_model(session, "mixtral-8x7b", "openrouter", "unused", "api")
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=openrouter_app)
@@ -58,11 +56,7 @@ def test_forward_to_openrouter(monkeypatch, tmp_path) -> None:
 
     client = TestClient(router_main.app)
     payload = {
-
         "model": "orc-1",
-
-        "model": "mixtral-8x7b",
-
         "messages": [{"role": "user", "content": "hi"}],
     }
     response = client.post("/v1/chat/completions", json=payload)

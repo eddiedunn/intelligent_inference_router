@@ -49,7 +49,7 @@ def setup_registry(monkeypatch, tmp_path) -> None:
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
     registry.create_tables()
     with registry.get_session() as session:
-        registry.upsert_model(session, "grok-model", "grok", "unused")
+        registry.upsert_model(session, "grok-model", "grok", "unused", "api")
 
 
 def patch_http_client(monkeypatch):

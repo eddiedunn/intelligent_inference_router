@@ -1,5 +1,5 @@
 [
-  {"name": "local_mistral", "type": "local", "endpoint": "http://localhost:5000"},
-  {"name": "gpt-3.5-turbo", "type": "openai", "endpoint": "https://api.openai.com"}
- ,{"name": "cluster-model", "type": "llm-d", "endpoint": "http://llm-d:8000"}
+  {"name": "local_mistral", "type": "local", "endpoint": "http://localhost:5000", "kind": "weight"},
+  {"name": "gpt-3.5-turbo", "type": "openai", "endpoint": "https://api.openai.com", "kind": "api"},
+  {"name": "cluster-model", "type": "llm-d", "endpoint": "http://llm-d:8000", "kind": "weight"}
 ]

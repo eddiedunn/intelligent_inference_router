@@ -36,7 +36,9 @@ def test_forward_to_local_agent_error(monkeypatch, tmp_path) -> None:
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
     registry.create_tables()
     with registry.get_session() as session:
-        registry.upsert_model(session, "local_mistral", "local", "http://testserver")
+        registry.upsert_model(
+            session, "local_mistral", "local", "http://testserver", "weight"
+        )
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=error_app)
@@ -66,7 +68,7 @@ def test_forward_to_openai_missing_key(monkeypatch, tmp_path) -> None:
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
     registry.create_tables()
     with registry.get_session() as session:
-        registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused")
+        registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused", "api")
 
     client = TestClient(router_main.app)
     payload = {

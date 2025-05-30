@@ -38,3 +38,4 @@ def test_refresh_openai(monkeypatch, tmp_path):
         models = registry.list_models(session)
         assert len(models) == 1
         assert models[0].name == "gpt-test"
+        assert models[0].kind == "api"
