@@ -7,7 +7,13 @@ from router.schemas import ChatCompletionRequest, Message
 
 
 class DummyPipe:
-    def __call__(self, prompt: str, max_new_tokens: int, temperature: float, return_full_text: bool):
+    def __call__(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        temperature: float,
+        return_full_text: bool,
+    ):
         return [{"generated_text": f"HF: {prompt}"}]
 
 
@@ -20,4 +26,3 @@ def test_forward(monkeypatch) -> None:
     )
     data = asyncio.run(provider.forward(payload, base_url="unused"))
     assert data["choices"][0]["message"]["content"] == "HF: hello"
-

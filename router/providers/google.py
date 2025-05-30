@@ -36,7 +36,9 @@ class GoogleProvider(ApiProvider):
                     raise HTTPException(
                         status_code=502, detail="External provider error"
                     ) from exc
-                return StreamingResponse(stream_resp(resp), media_type="text/event-stream")
+                return StreamingResponse(
+                    stream_resp(resp), media_type="text/event-stream"
+                )
 
             resp = await client.post(path, json=payload.dict(), params=params)
             try:

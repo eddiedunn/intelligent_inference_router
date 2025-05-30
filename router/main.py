@@ -30,7 +30,16 @@ from prometheus_client import (
 import redis.asyncio as redis
 
 from .utils import stream_resp
-from .providers import openai, anthropic, google, openrouter, grok, venice
+from .providers import (
+    openai,
+    anthropic,
+    google,
+    openrouter,
+    grok,
+    venice,
+)
+import router.providers as providers
+from .providers.base import WeightProvider
 
 from .schemas import ChatCompletionRequest, Message as SchemaMessage
 from pydantic import BaseModel
@@ -120,6 +129,33 @@ ROUTER_COST_THRESHOLD = int(
 )
 
 BACKEND_METRICS: Dict[str, Dict[str, float]] = {}
+
+# Cache for instantiated weight providers
+WEIGHT_PROVIDERS: Dict[str, WeightProvider] = {}
+
+
+def get_weight_provider(name: str) -> WeightProvider:
+    """Return or create a weight provider instance."""
+
+    provider = WEIGHT_PROVIDERS.get(name)
+    if provider is None:
+        try:
+            module = getattr(providers, name)
+        except AttributeError as exc:  # coverage: ignore -- defensive
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unsupported provider '{name}'",
+            ) from exc
+        class_name = "".join(part.capitalize() for part in name.split("_")) + "Provider"
+        provider_cls = getattr(module, class_name, None)
+        if provider_cls is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Provider class for '{name}' not found",
+            )
+        provider = provider_cls()
+        WEIGHT_PROVIDERS[name] = provider
+    return provider
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -345,12 +381,31 @@ async def chat_completions(payload: ChatCompletionRequest):
         entry = MODEL_REGISTRY.get(payload.model)
 
         if entry is not None:
+            backend = entry.type
+            if entry.kind == "weight":
+                if entry.type == "local":
+                    return await forward_to_local_agent(payload)
+                if entry.type == "llm-d":
+                    return await forward_to_llmd(payload)
+                provider = get_weight_provider(entry.type)
+                return await provider.forward(payload, entry.endpoint)
+
             if entry.type == "local":
-                backend = "local"
                 return await forward_to_local_agent(payload)
             if entry.type == "openai":
-                backend = "openai"
                 return await forward_to_openai(payload)
+            if entry.type == "anthropic":
+                return await forward_to_anthropic(payload)
+            if entry.type == "google":
+                return await forward_to_google(payload)
+            if entry.type == "openrouter":
+                return await forward_to_openrouter(payload)
+            if entry.type == "grok":
+                return await forward_to_grok(payload)
+            if entry.type == "venice":
+                return await forward_to_venice(payload)
+            if entry.type == "llm-d":
+                return await forward_to_llmd(payload)
 
         if payload.model.startswith("local"):
             backend = "local"
