@@ -24,6 +24,7 @@ VALID_MODEL_TYPES = {
     "openrouter",
     "grok",
     "venice",
+    "huggingface",
 }
 
 

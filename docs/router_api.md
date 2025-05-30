@@ -11,9 +11,10 @@ This API currently supports the following:
 - Local agent forwarding (only vllm, Docker-based workers)
 - Proxying to OpenAI
 - Forwarding to additional providers: Anthropic, Google, OpenRouter, Grok, Venice
+- Local inference via Hugging Face models
 
 
-**Note:** Features such as rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice) are planned for post-MVP.
+**Note:** Features such as rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice, Hugging Face) are planned for post-MVP.
 
 
 ---
@@ -157,7 +158,7 @@ The following features are planned for future releases:
 - Rate limiting
 - Smart routing
 - Additional inference worker types (llm-d)
-- Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice
+- Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice, Hugging Face
 
 See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
 
