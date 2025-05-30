@@ -62,6 +62,8 @@ Features and integrations planned for after the MVP:
   - Grok
   - Venice
   - Hugging Face
+- Unified provider architecture with `ApiProvider` and `WeightProvider`
+  classes to support both remote APIs and local weights.
 
 ---
 

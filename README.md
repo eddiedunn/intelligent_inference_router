@@ -88,6 +88,12 @@ Add or update a single model entry:
 python -m router.cli add-model <name> <type> <endpoint> [kind]
 ```
 
+Register a Hugging Face model that uses local weights:
+
+```bash
+python -m router.cli add-model meta-llama/Llama-3 huggingface https://huggingface.co weight
+```
+
 Fetch the latest models from OpenAI and refresh the registry:
 
 ```bash

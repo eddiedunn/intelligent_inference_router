@@ -88,6 +88,9 @@ GROK_BASE_URL=https://api.groq.com
 EXTERNAL_GROK_KEY=...
 VENICE_BASE_URL=https://api.venice.ai
 EXTERNAL_VENICE_KEY=...
+HF_CACHE_DIR=data/hf_models
+HF_DEVICE=cpu
+HUGGING_FACE_HUB_TOKEN=
 ```
 
 
@@ -109,11 +112,29 @@ ROUTER_COST_THRESHOLD=1000  # route locally if cost exceeds this value
 
 If omitted, the router falls back to the values defined in the project config.
 
+### Provider Architecture
+
+Providers come in two flavors:
+
+- **ApiProvider** – forwards requests to an external HTTP API.
+- **WeightProvider** – loads model weights locally and performs inference.
+
+Each provider implementation lives under `router/providers/`. The model
+registry's `kind` column indicates whether a model should use API forwarding or
+local weights. Weight providers like `huggingface` download and cache models in
+`HF_CACHE_DIR` and respect `HF_DEVICE`.
+
 
 
 Set the relevant keys before starting the server. Models for each provider must
 be added to the registry using `router.cli add-model` (optionally passing
 `kind=api|weight`) or `refresh-openai` for OpenAI.
+
+Example for a weight-based Hugging Face model:
+
+```bash
+python -m router.cli add-model meta-llama/Llama-3 huggingface https://huggingface.co weight
+```
 
 Valid model types are `local`, `openai`, `llm-d`, `anthropic`, `google`,
 `openrouter`, `grok`, and `venice`.
