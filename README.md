@@ -85,7 +85,7 @@ make seed
 Add or update a single model entry:
 
 ```bash
-python -m router.cli add-model <name> <type> <endpoint>
+python -m router.cli add-model <name> <type> <endpoint> [kind]
 ```
 
 Fetch the latest models from OpenAI and refresh the registry:

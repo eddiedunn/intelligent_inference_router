@@ -39,7 +39,9 @@ def test_forward_to_llmd(monkeypatch, tmp_path) -> None:
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
     registry.create_tables()
     with registry.get_session() as session:
-        registry.upsert_model(session, "cluster-model", "llm-d", "http://testserver")
+        registry.upsert_model(
+            session, "cluster-model", "llm-d", "http://testserver", "weight"
+        )
 
     real_async_client = httpx.AsyncClient
     transport = httpx.ASGITransport(app=llmd_app)

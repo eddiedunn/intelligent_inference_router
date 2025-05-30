@@ -9,6 +9,7 @@ import typer
 
 from .registry import (
     create_tables,
+    run_migrations,
     get_session,
     upsert_model,
     clear_models,
@@ -20,9 +21,10 @@ app = typer.Typer(help="Model registry administration")
 
 @app.command()
 def migrate() -> None:
-    """Create database tables."""
+    """Create database tables and run migrations."""
 
     create_tables()
+    run_migrations()
 
 
 @app.command()
@@ -34,11 +36,17 @@ def seed(config: Path) -> None:
 
     with get_session() as session:
         for item in models:
-            upsert_model(session, item["name"], item["type"], item["endpoint"])
+            upsert_model(
+                session,
+                item["name"],
+                item["type"],
+                item["endpoint"],
+                item.get("kind", "api"),
+            )
 
 
 @app.command("add-model")
-def add_model(name: str, type: str, endpoint: str) -> None:
+def add_model(name: str, type: str, endpoint: str, kind: str = "api") -> None:
     """Add or update a single model entry."""
 
     if type not in VALID_MODEL_TYPES:
@@ -48,8 +56,12 @@ def add_model(name: str, type: str, endpoint: str) -> None:
         )
         raise typer.Exit(1)
 
+    if kind not in {"api", "weight"}:
+        typer.echo("kind must be 'api' or 'weight'", err=True)
+        raise typer.Exit(1)
+
     with get_session() as session:
-        upsert_model(session, name, type, endpoint)
+        upsert_model(session, name, type, endpoint, kind)
 
 
 @app.command("refresh-openai")
@@ -72,7 +84,7 @@ def refresh_openai() -> None:
         for item in data:
             model_id = item.get("id")
             if model_id:
-                upsert_model(session, model_id, "openai", base_url)
+                upsert_model(session, model_id, "openai", base_url, "api")
 
     typer.echo(f"Inserted {len(data)} models")
 

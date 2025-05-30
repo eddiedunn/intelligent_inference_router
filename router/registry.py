@@ -44,6 +44,9 @@ class ModelEntry(Base):  # type: ignore[misc]
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
     endpoint: Mapped[str] = mapped_column(String, nullable=False)
+    kind: Mapped[str] = mapped_column(
+        String, nullable=False, default="api", server_default="api"
+    )
 
 
 class AgentEntry(Base):  # type: ignore[misc]
@@ -62,6 +65,14 @@ def create_tables() -> None:
     """Create registry tables if they do not exist."""
 
     Base.metadata.create_all(engine)
+
+
+def run_migrations() -> None:
+    """Apply pending database migrations."""
+
+    from .migrations import run_all
+
+    run_all(engine)
 
 
 def get_session() -> Session:
@@ -105,7 +116,13 @@ def update_heartbeat(session: Session, name: str) -> None:
         session.commit()
 
 
-def upsert_model(session: Session, name: str, type: str, endpoint: str) -> None:
+def upsert_model(
+    session: Session,
+    name: str,
+    type: str,
+    endpoint: str,
+    kind: str = "api",
+) -> None:
     """Insert or update a model entry.
 
     Parameters
@@ -118,15 +135,18 @@ def upsert_model(session: Session, name: str, type: str, endpoint: str) -> None:
         Backend type (one of ``VALID_MODEL_TYPES``).
     endpoint:
         Base URL for the model backend.
+    kind:
+        Storage kind, ``api`` or ``weight``.
     """
 
     model = session.query(ModelEntry).filter_by(name=name).first()
     if model is None:
-        model = ModelEntry(name=name, type=type, endpoint=endpoint)
+        model = ModelEntry(name=name, type=type, endpoint=endpoint, kind=kind)
         session.add(model)
     else:
         model.type = type
         model.endpoint = endpoint
+        model.kind = kind
     session.commit()
 
 

@@ -111,8 +111,8 @@ If omitted, the router falls back to the values defined in the project config.
 
 
 Set the relevant keys before starting the server. Models for each provider must
-be added to the registry using `router.cli add-model` or `refresh-openai` for
-OpenAI.
+be added to the registry using `router.cli add-model` (optionally passing
+`kind=api|weight`) or `refresh-openai` for OpenAI.
 
 Valid model types are `local`, `openai`, `llm-d`, `anthropic`, `google`,
 `openrouter`, `grok`, and `venice`.
