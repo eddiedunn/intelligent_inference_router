@@ -7,7 +7,8 @@ class ApiProvider:
     """Base class for providers that forward requests to external APIs."""
 
     async def forward(
-        self, payload: ChatCompletionRequest,
+        self,
+        payload: ChatCompletionRequest,
         base_url: str,
         api_key: str | None,
     ):
@@ -19,7 +20,8 @@ class WeightProvider:
     """Base class for providers that load local model weights."""
 
     async def forward(
-        self, payload: ChatCompletionRequest,
+        self,
+        payload: ChatCompletionRequest,
         base_url: str,
     ):
         """Perform inference using local weights."""

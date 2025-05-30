@@ -4,7 +4,7 @@ import os
 import uuid
 import time
 import asyncio
-from typing import Dict
+from typing import Dict, Any
 
 from huggingface_hub import snapshot_download
 from transformers import pipeline
@@ -19,7 +19,7 @@ class HuggingFaceProvider(WeightProvider):
     def __init__(self) -> None:
         self.cache_dir = os.getenv("HF_CACHE_DIR", "data/hf_models")
         self.device = os.getenv("HF_DEVICE", "cpu")
-        self._pipelines: Dict[str, any] = {}
+        self._pipelines: Dict[str, Any] = {}
 
     def _get_pipeline(self, model_id: str):
         pipe = self._pipelines.get(model_id)
