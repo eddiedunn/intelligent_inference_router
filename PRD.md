@@ -30,9 +30,9 @@ This architecture enables flexible, cost-efficient LLM inference by routing requ
 | Local Agent (vllm, Docker)       | ✅      |                  |
 | Proxy to OpenAI                  | ✅      |                  |
 | SQLite Model Registry            | ✅      |                  |
-| Docker Compose Dev Stack         | 🚧      |                  |
-| CI Workflow                      | 🚧      |                  |
-| MkDocs Documentation Site        | 🚧      |                  |
+| Docker Compose Dev Stack         | ✅      |                  |
+| CI Workflow                      | ✅      |                  |
+| MkDocs Documentation Site        | ✅      |                  |
 | Redis Caching                    |         | ✅               |
 | Rate Limiting                    |         | ✅               |
 | Smart Routing                    |         | ✅               |

@@ -18,22 +18,22 @@ These features are required for the MVP milestone. All other features are deferr
 - [x] Provide Local LLM Service via vLLM (Docker-based only)
 
 ### Shared / Infra
-- [ ] Docker Compose for Dev Stack
-- [ ] Continuous Integration Workflow
-- [ ] Documentation Site with MkDocs
+- [x] Docker Compose for Dev Stack
+- [x] Continuous Integration Workflow
+- [x] Documentation Site with MkDocs
 
 ### Full Testing
-- [ ] Unit Tests
-- [ ] Integration Tests
+- [x] Unit Tests
+- [x] Integration Tests
 
 ---
 
 ## ❌ Explicitly NOT in MVP
 
-- [ ] Enable Redis Caching
-- [ ] Rate Limiting
-- [ ] Smart Routing (intelligent request dispatch)
-- [ ] Add Request Logging and Metrics
+ - [x] Enable Redis Caching
+ - [x] Rate Limiting
+ - [ ] Smart Routing (intelligent request dispatch)
+ - [x] Add Request Logging and Metrics
 - [x] Register Agent with Router
 - [x] Send Periodic Heartbeats
 - [x] Forward to llm-d Cluster
@@ -74,7 +74,6 @@ these base classes.
 
 **Note:** Only `vllm` (Docker-based) inference workers and OpenAI proxy are supported for MVP. All other worker types and provider integrations are deferred until after MVP. See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
 
-so that lightweight prompts run on-device.
 **Acceptance criteria:**
 - ✅ Router resolves model type `local` via the registry.
 - ✅ Requests are sent to `http://<agent-host>:5000/infer` and response relayed.
