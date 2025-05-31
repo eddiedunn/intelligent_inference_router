@@ -16,6 +16,8 @@ For local models, run the Local Agent service:
 
 ```bash
 uvicorn local_agent.main:app --port 5000
+# or
+python -m local_agent.main
 ```
 
 

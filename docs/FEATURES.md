@@ -169,7 +169,7 @@ so that routing rules are configurable without code changes.
 **User story:** As a Mac user I want a lightweight HTTP service that runs a local model
 so that I can process prompts offline.
 **Acceptance criteria:**
-- ✅ Agent starts via `python local_agent/main.py` on macOS.
+- ✅ Agent starts via `uvicorn local_agent.main:app --port 5000` on macOS.
 - ✅ `POST /infer` accepts prompt and generation params.
 - ✅ Uses PyTorch MPS to load default model `local_mistral-7b-instruct-q4`.
 **Implementation hints:**
