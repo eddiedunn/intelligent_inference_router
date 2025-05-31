@@ -14,5 +14,6 @@ nav:
   - Feature Checklist: FEATURES.md
   - Setup: setup.md
   - Usage: usage.md
+  - Local Agent: local_agent.md
   - API Examples: api_examples.md
   - Router API: router_api.md
