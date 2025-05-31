@@ -22,6 +22,7 @@ uvicorn local_agent.main:app --port 5000
 python -m local_agent.main
 ```
 
+See [docs/local_agent.md](docs/local_agent.md) for configuration options and environment variables.
 
 Any request whose `model` starts with `local` will be forwarded to this agent.
 
