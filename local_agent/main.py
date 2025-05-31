@@ -90,3 +90,9 @@ async def infer(payload: ChatCompletionRequest):
         },
     }
     return response
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("local_agent.main:app", port=5000)
