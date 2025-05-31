@@ -29,9 +29,6 @@ These features are required for the MVP milestone. All other features are deferr
 ---
 
 ## ❌ Explicitly NOT in MVP
-
-- [ ] Enable Redis Caching
-- [ ] Rate Limiting
 - [ ] Smart Routing (intelligent request dispatch)
 - [ ] Add Request Logging and Metrics
 - [x] Register Agent with Router
