@@ -79,6 +79,7 @@ def test_get_pipeline_download_and_cache(monkeypatch, tmp_path) -> None:
     assert pipe2 is dummy_pipe
     assert calls == {"download": 1, "pipeline": 1}
 
+
 def test_get_pipeline_respects_device_env(monkeypatch, tmp_path):
     monkeypatch.setenv("HF_DEVICE", "cuda")
     provider = HuggingFaceProvider()
