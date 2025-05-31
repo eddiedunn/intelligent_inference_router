@@ -114,25 +114,30 @@ If omitted, the router falls back to the values defined in the project config.
 
 ### Provider Architecture
 
-Providers come in two flavors:
+Version&nbsp;0.2 introduced a unified provider layer. Every backend now derives
+from one of two base classes:
 
-- **ApiProvider** – forwards requests to an external HTTP API.
-- **WeightProvider** – loads model weights locally and performs inference.
+- **`ApiProvider`** – forwards requests to a remote HTTP API.
+- **`WeightProvider`** – loads model weights locally and performs inference.
 
-Each provider implementation lives under `router/providers/`. The model
-registry's `kind` column indicates whether a model should use API forwarding or
-local weights. Weight providers like `huggingface` download and cache models in
-`HF_CACHE_DIR` and respect `HF_DEVICE`.
+Provider implementations live under `router/providers/`. The router looks at the
+`kind` column of the model registry to decide which class to instantiate.
 
-
+Weight providers such as `huggingface` download and cache models in
+`HF_CACHE_DIR` and respect `HF_DEVICE`. API providers (OpenAI, Anthropic,
+Google, OpenRouter, Grok and Venice) simply forward the request with the
+appropriate API key.
 
 Set the relevant keys before starting the server. Models for each provider must
-be added to the registry using `router.cli add-model` (optionally passing
-`kind=api|weight`) or `refresh-openai` for OpenAI.
+be added to the registry using `router.cli add-model` (pass `kind=api` or
+`kind=weight`) or via `refresh-openai` for OpenAI models.
 
-Example for a weight-based Hugging Face model:
+#### Registering Weight-Based Models
+
+Use the CLI to register models that run locally:
 
 ```bash
+python -m router.cli add-model local_mistral local http://localhost:5000 weight
 python -m router.cli add-model meta-llama/Llama-3 huggingface https://huggingface.co weight
 ```
 

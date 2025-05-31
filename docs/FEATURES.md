@@ -61,9 +61,14 @@ Features and integrations planned for after the MVP:
   - OpenRouter
   - Grok
   - Venice
-  - Hugging Face
+- Hugging Face
 - Unified provider architecture with `ApiProvider` and `WeightProvider`
   classes to support both remote APIs and local weights.
+
+The router inspects the model's `kind` (`api` or `weight`) to decide whether to
+forward the request to a remote service or load local weights via a provider
+like `huggingface`. Each provider under `router/providers/` implements one of
+these base classes.
 
 ---
 
