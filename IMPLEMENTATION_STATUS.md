@@ -18,45 +18,35 @@ This section tracks only the features required for the MVP release. Only items c
 - [x] Continuous Integration Workflow
 - [x] Documentation Site with MkDocs
 
-
 ### Testing
 - [x] Unit Tests
 - [x] Integration Tests
-
-### Explicitly NOT in MVP
-
-- [ ] Smart Routing
-- [x] Add Request Logging and Metrics
-- [x] Register Agent with Router
-- [x] Send Periodic Heartbeats
-- [ ] Forward to llm-d Cluster
-- [ ] Deploy llm-d via Helm
-- [ ] Expose Cluster Endpoint to Router
-- [ ] Additional Inference Worker Types (only vllm in Docker for MVP)
 
 ---
 
 # Post-MVP Roadmap
 
-This section tracks features, integrations, and improvements to be implemented after the MVP milestone.
+This section tracks features, integrations, and improvements planned for after the MVP milestone.
 
-## Features Deferred Until After MVP
-- Caching (e.g., Redis caching)
-- Rate limiting
-- Smart routing (intelligent request dispatch)
-- Request Logging and Metrics
-- Agent registration & heartbeats
-- llm-d cluster support (forwarding, deployment, endpoint exposure)
-- Additional inference worker types (llm-d)
+## Post-MVP Features (Implemented)
+- [x] Request Logging and Metrics
+- [x] Agent Registration with Router
+- [x] Send Periodic Heartbeats
+- [x] Anthropic Provider Integration
+- [x] Google Provider Integration
+- [x] OpenRouter Provider Integration
+- [x] Grok Provider Integration
+- [x] Venice Provider Integration
 
-## Planned Provider Integrations (Post-MVP)
-- [x] Anthropic
-- [x] Google
-- [x] OpenRouter
-- [x] Grok
-- [x] Venice
-- [ ] Hugging Face
-
+## Post-MVP Features (Planned)
+- [ ] Smart Routing
+- [ ] Forward to llm-d Cluster
+- [ ] Deploy llm-d via Helm
+- [ ] Expose Cluster Endpoint to Router
+- [ ] Additional Inference Worker Types (llm-d)
+- [ ] Caching (e.g., Redis caching)
+- [ ] Rate limiting
+- [ ] Hugging Face Provider Integration
 
 ---
 
