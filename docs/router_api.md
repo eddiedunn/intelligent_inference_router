@@ -61,24 +61,36 @@ uvicorn local_agent.main:app --port 5000
 
 The router relays the agent's JSON response back to the client.
 
-### Smart Routing Logic
+### Routing Logic
 
-`/v1/chat/completions` requests are routed based on model type, estimated
-request cost, and recent backend latency metrics. When a `gpt-*` model is
-requested, the router weighs the measured latency of the OpenAI backend against
-the local agent. If the request cost (roughly the combined prompt length)
-exceeds `ROUTER_COST_THRESHOLD`, the request is sent to the local agent to save
-API usage. Otherwise, the backend with the lowest weighted score—computed from
-`ROUTER_COST_WEIGHT` and `ROUTER_LATENCY_WEIGHT`—is selected.
+When a request hits `/v1/chat/completions` the router first looks up the
+requested model in the SQLite registry. If the model exists the request is
+forwarded to the provider specified by the `type` column. Unknown models fall
+back to simple prefix heuristics:
+
+- `local*` → Local Agent
+- `gpt-*` → OpenAI
+- `llmd-*` → llm-d cluster (when `LLMD_ENDPOINT` is set)
+- `claude*` → Anthropic
+- `google*` → Google
+- `openrouter*` → OpenRouter
+- `grok*` → Grok
+- `venice*` → Venice
+
+This basic scheme will be replaced by smart routing in a future release.
 
 ### Configuration
 
-The router reads API keys for each provider from environment variables. A sample
-`.env` file might look like:
+The router reads its configuration from environment variables. A sample `.env`
+might look like:
 
 ```bash
+SQLITE_DB_PATH=data/models.db
+REDIS_URL=redis://redis:6379/0
+LOCAL_AGENT_URL=http://local_agent:5000
 OPENAI_BASE_URL=https://api.openai.com
 EXTERNAL_OPENAI_KEY=sk-...
+LLMD_ENDPOINT=
 ANTHROPIC_BASE_URL=https://api.anthropic.com
 EXTERNAL_ANTHROPIC_KEY=...
 GOOGLE_BASE_URL=https://generativelanguage.googleapis.com
@@ -92,6 +104,7 @@ EXTERNAL_VENICE_KEY=...
 HF_CACHE_DIR=data/hf_models
 HF_DEVICE=cpu
 HUGGING_FACE_HUB_TOKEN=
+RATE_LIMIT_REQUESTS=60
 ```
 
 
@@ -102,8 +115,9 @@ HUGGING_FACE_HUB_TOKEN=
 For OpenRouter, both `OPENROUTER_BASE_URL` and `EXTERNAL_OPENROUTER_KEY` must be
 set before the router can forward requests to the service.
 
-Routing decisions also depend on a few tuning variables. These may be set as
-environment variables or placed under `[tool.router]` in `pyproject.toml`:
+The code defines a few tuning variables reserved for future smart routing.
+They can be set as environment variables or placed under `[tool.router]` in
+`pyproject.toml`:
 
 ```bash
 ROUTER_COST_WEIGHT=1.0      # weight applied to request cost
@@ -171,10 +185,8 @@ accordingly.
 
 ### Redis Caching
 
-Set `REDIS_URL` to point to your Redis instance and `CACHE_TTL` to the desired
-expiration (in seconds). When a request is received, the router checks Redis for
-a cached response before forwarding to a backend. Non-streaming responses are
-stored in Redis using the TTL.
+`REDIS_URL` and `CACHE_TTL` are defined for a planned caching layer, but the
+current implementation does not store responses in Redis.
 
 
 ---
@@ -182,6 +194,7 @@ stored in Redis using the TTL.
 ## Post-MVP Roadmap
 
 The following features are planned for future releases:
+- Redis caching
 - Rate limiting
 - Smart routing
 - Additional inference worker types (llm-d)
