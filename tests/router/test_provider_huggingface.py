@@ -74,3 +74,29 @@ def test_get_pipeline_download_and_cache(monkeypatch, tmp_path) -> None:
     pipe2 = provider._get_pipeline("test/model")
     assert pipe2 is dummy_pipe
     assert calls == {"download": 1, "pipeline": 1}
+
+def test_get_pipeline_respects_device_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("HF_DEVICE", "cuda")
+    provider = HuggingFaceProvider()
+    provider.cache_dir = str(tmp_path)
+
+    def fake_exists(path: str) -> bool:
+        return True
+
+    calls = {}
+
+    def fake_pipeline(task: str, model: str, tokenizer: str, device: int):
+        calls["device"] = device
+        return object()
+
+    monkeypatch.setattr("router.providers.huggingface.os.path.exists", fake_exists)
+    monkeypatch.setattr("router.providers.huggingface.pipeline", fake_pipeline)
+
+    provider._get_pipeline("test/model")
+    assert calls["device"] == 0
+
+
+def test_init_uses_cache_env(monkeypatch):
+    monkeypatch.setenv("HF_CACHE_DIR", "/tmp/hf")
+    provider = HuggingFaceProvider()
+    assert provider.cache_dir == "/tmp/hf"
