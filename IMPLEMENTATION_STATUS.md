@@ -25,18 +25,10 @@ This section tracks only the features required for the MVP release. Only items c
 
 ### Explicitly NOT in MVP
 
-- [x] Enable Redis Caching
-- [x] Rate Limiting
-
 - [ ] Smart Routing
 - [x] Add Request Logging and Metrics
 - [x] Register Agent with Router
 - [x] Send Periodic Heartbeats
-- [x] Forward to llm-d Cluster
-- [x] Deploy llm-d via Helm
-- [x] Expose Cluster Endpoint to Router
-
-
 - [ ] Forward to llm-d Cluster
 - [ ] Deploy llm-d via Helm
 - [ ] Expose Cluster Endpoint to Router
