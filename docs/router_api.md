@@ -10,12 +10,13 @@ This API currently supports the following:
 - OpenAI-compatible endpoint: `/v1/chat/completions`
 - Local agent forwarding (only vllm, Docker-based workers)
 - Proxying to OpenAI
-- Forwarding to additional providers: Anthropic, Google, OpenRouter, Grok, Venice
-- Local inference via Hugging Face models
+- SQLite-backed model registry
 
 
-**Note:** Features such as rate limiting, smart routing, additional worker types (llm-d), and other providers (Anthropic, Google, OpenRouter, Grok, Venice, Hugging Face) are planned for post-MVP.
-
+**Note:** Features such as caching, rate limiting, smart routing,
+additional worker types (llm-d), and provider integrations
+(Anthropic, Google, OpenRouter, Grok, Venice, Hugging Face) are
+planned for post-MVP.
 
 ---
 
