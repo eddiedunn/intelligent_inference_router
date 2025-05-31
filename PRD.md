@@ -1,20 +1,6 @@
-> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).**
-
-Thanks! I’ll now prepare a revised production-ready architecture (PRD) for your distributed inference system with a clear MVP. This will:
-
-* Incorporate llm-d for GPU-scaled Kubernetes-based serving.
-* Define a router node that can optionally serve local models (acting partially as a worker).
-* Keep the Mac-based local agent non-containerized for direct access to Apple Silicon models.
-* Be Kubernetes-ready but runnable without it for training and local dev.
-* Preserve Redis and SQLite usage from your existing IIR project.
-* Follow best practices from Alibaba Cloud, Balaji Balasubramanian, Red Hat’s semantic router, and vLLM/llm-d whitepapers.
-
-I’ll include architectural diagrams, component responsibilities, deployment steps (for beginners), and a definition of the MVP.
-
-I’ll get started and be back soon with the plan.
-
-
 # Distributed Inference Router System – Architecture & MVP Guide
+
+> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).**
 
 ## Overview
 
