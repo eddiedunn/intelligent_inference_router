@@ -1,6 +1,8 @@
 # Intelligent Inference Router
 
-This project provides a prototype OpenAI-compatible API that returns a dummy response.
+This project provides a prototype OpenAI-compatible API gateway. Requests may be
+forwarded to local agents, proxied to external providers such as OpenAI, or
+resolved using the built-in SQLite model registry.
 
 ## Development
 
