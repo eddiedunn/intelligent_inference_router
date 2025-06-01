@@ -1,4 +1,4 @@
-.PHONY: dev lint test migrate seed docker-dev docs-serve k3s-up
+.PHONY: dev lint test test-integration migrate seed docker-dev docs-serve k3s-up
 
 dev:
 	uvicorn router.main:app --reload --port 8000
@@ -9,7 +9,10 @@ lint:
 	mypy router tests
 
 test:
-	pytest --cov=router --cov=local_agent --cov-report=term-missing --cov-report=xml -q
+	pytest
+
+test-integration:
+	pytest -m integration
 
 migrate:
 	python -m router.cli migrate

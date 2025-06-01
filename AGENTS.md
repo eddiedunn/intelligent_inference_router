@@ -45,6 +45,23 @@ See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date s
 # • Follow PEP 8 + PEP 257, write type-hinted Python 3.10+.
 # • All new code MUST include unit tests and docs.
 #
+# The Codex environment already runs **inside a Docker container** built from an
+# Ubuntu 24.04 image. The Dockerfile installs common build tools and multiple
+# language runtimes via `pyenv`, `nvm`, Rustup, Go, Swift and more. Python 3.11
+# is the default. During container start-up the following initialization steps
+# are executed **once** while network access is available:
+#
+# ```bash
+# python3 -m venv .venv
+# .venv/bin/pip install --upgrade pip
+# .venv/bin/pip install -e .
+# .venv/bin/pip install -r requirements-dev.txt
+# .venv/bin/pip install pytest-asyncio
+# ```
+#
+# After these commands run the network is disabled. Do **not** attempt to
+# recreate the virtual environment or build new Docker images/containers.
+#
 # The rest of this file gives details.
 
 ## 1. Repository rules
@@ -129,11 +146,14 @@ Codex SHOULD invoke these targets rather than raw commands.
 
 ## 3. Tests & CI
 
-* The root **GitHub Actions** workflow (`.github/workflows/ci.yml`) runs:
-
-  1. `make lint`
-  2. `make test`
-  3. Docker build for each service
+* Unit tests are executed with `make test`, which calls plain `pytest`.
+  A `pytest.ini` file excludes integration tests by default using the
+  `-m "not integration"` option.
+* Run `make test-integration` to execute integration tests marked with
+  `@pytest.mark.integration`.
+* The root **GitHub Actions** workflow (`.github/workflows/ci.yml`) runs
+  `make lint` and `make test`. A second job runs `make test-integration`
+  only when the workflow is triggered manually via `workflow_dispatch`.
 * Integration tests spin up Router + Local Agent with `pytest-asyncio`
   and stub external APIs with **vcr.py**.
 
@@ -174,4 +194,4 @@ Codex SHOULD invoke these targets rather than raw commands.
 
 ---
 
-*Last updated: 2025-05-25*
+*Last updated: 2025-06-01*
