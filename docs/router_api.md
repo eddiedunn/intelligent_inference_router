@@ -14,9 +14,8 @@ This API currently supports the following:
 
 
 **Note:** Features such as caching, rate limiting, smart routing,
-additional worker types (llm-d), and provider integrations
-(Anthropic, Google, OpenRouter, Grok, Venice, Hugging Face) are
-planned for post-MVP.
+additional worker types (llm-d), and the planned Hugging Face provider
+integration remain post-MVP.
 
 ---
 
@@ -197,8 +196,11 @@ The following features are planned for future releases:
 - Redis caching
 - Rate limiting
 - Smart routing
+- Forwarding to llm-d cluster
+- Deploying llm-d via Helm
+- Exposing the cluster endpoint to the router
 - Additional inference worker types (llm-d)
-- Provider integrations: Anthropic, Google, OpenRouter, Grok, Venice, Hugging Face
+- Provider integration: Hugging Face
 
 See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date status.
 

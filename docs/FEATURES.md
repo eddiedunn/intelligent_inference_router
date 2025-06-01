@@ -30,38 +30,32 @@ These features are required for the MVP milestone. All other features are deferr
 
 ## ❌ Explicitly NOT in MVP
 
- - [x] Enable Redis Caching
- - [x] Rate Limiting
- - [ ] Smart Routing (intelligent request dispatch)
- - [x] Add Request Logging and Metrics
+- [ ] Enable Redis Caching
+- [ ] Rate Limiting
+- [ ] Smart Routing (intelligent request dispatch)
+- [x] Add Request Logging and Metrics
 - [x] Register Agent with Router
 - [x] Send Periodic Heartbeats
-- [x] Forward to llm-d Cluster
-- [x] Deploy llm-d via Helm
-- [x] Expose Cluster Endpoint to Router
+- [ ] Forward to llm-d Cluster
+- [ ] Deploy llm-d via Helm
+- [ ] Expose Cluster Endpoint to Router
 - [ ] Additional Inference Worker Types (llm-d, etc.)
-- [ ] Support for additional providers (Anthropic, Google, OpenRouter, Grok, Venice)
+- [x] Support for additional providers (Anthropic, Google, OpenRouter, Grok, Venice)
 
 ---
 
 ## 📈 Post-MVP Roadmap
 
-Features and integrations planned for after the MVP:
+Remaining features planned for after the MVP:
 
 - Caching (e.g., Redis caching)
 - Rate limiting
 - Smart routing (intelligent request dispatch)
-- Request Logging and Metrics
-- Agent registration & heartbeats
-- llm-d cluster support (forwarding, deployment, endpoint exposure)
+- Forward to llm-d Cluster
+- Deploy llm-d via Helm
+- Expose Cluster Endpoint to Router
 - Additional inference worker types (llm-d)
-- Provider integrations:
-  - Anthropic
-  - Google
-  - OpenRouter
-  - Grok
-  - Venice
-- Hugging Face
+- Provider integration: Hugging Face
 - Unified provider architecture with `ApiProvider` and `WeightProvider`
   classes to support both remote APIs and local weights.
 
