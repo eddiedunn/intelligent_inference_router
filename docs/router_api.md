@@ -158,6 +158,15 @@ python -m router.cli add-model meta-llama/Llama-3 huggingface https://huggingfac
 Valid model types are `local`, `openai`, `llm-d`, `anthropic`, `google`,
 `openrouter`, `grok`, and `venice`.
 
+#### Listing Registered Models
+
+Show all entries in the model registry:
+
+```bash
+python -m router.cli list-models
+```
+
+
 ### Agent Registration & Heartbeats
 
 Agents announce themselves to the router using the `/register` and `/heartbeat`

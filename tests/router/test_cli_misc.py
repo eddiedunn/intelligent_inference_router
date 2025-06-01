@@ -66,3 +66,23 @@ def test_add_model_invalid_type(monkeypatch):
     runner = CliRunner()
     result = runner.invoke(cli.app, ["add-model", "foo", "invalid", "http://x"])
     assert result.exit_code != 0
+
+
+def test_list_models(monkeypatch):
+    class Model:
+        def __init__(self, name, type, endpoint, kind):
+            self.name = name
+            self.type = type
+            self.endpoint = endpoint
+            self.kind = kind
+
+    def fake_list_models(session):
+        return [Model("foo", "local", "http://x", "weight")]
+
+    monkeypatch.setattr(cli, "get_session", lambda: DummySession())
+    monkeypatch.setattr(cli, "list_models", fake_list_models)
+
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["list-models"])
+    assert result.exit_code == 0
+    assert "foo\tlocal\thttp://x\tweight" in result.stdout
