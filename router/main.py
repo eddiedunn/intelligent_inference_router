@@ -254,11 +254,11 @@ def select_backend(payload: ChatCompletionRequest) -> str:
         cost = _request_cost(payload)
         if cost >= ROUTER_COST_THRESHOLD:
             return "local"
-        local_lat = BACKEND_METRICS.get("local", {}).get("latency", 0.0)
-        openai_lat = BACKEND_METRICS.get("openai", {}).get("latency", 0.0)
-        local_score = ROUTER_LATENCY_WEIGHT * local_lat
-        openai_score = ROUTER_LATENCY_WEIGHT * openai_lat + ROUTER_COST_WEIGHT * cost
-        return "local" if local_score <= openai_score else "openai"
+        local_lat = BACKEND_METRICS.get("local", {}).get("latency")
+        openai_lat = BACKEND_METRICS.get("openai", {}).get("latency")
+        if local_lat is None or openai_lat is None:
+            return "local"
+        return "openai" if openai_lat < local_lat else "local"
 
     if payload.model.startswith("llmd-"):
         return "llm-d"
