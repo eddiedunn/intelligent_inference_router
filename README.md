@@ -69,14 +69,18 @@ make k3s-up
 After the chart deploys, set `LLMD_ENDPOINT` to the service URL so the router
 can forward requests.
 
-Run the unit tests with coverage enabled using:
+Run the unit tests with:
 
 ```bash
 make test
 ```
 
-The command writes a coverage report to `coverage.xml` and prints a summary in
-the terminal.
+Integration tests require Docker and are skipped by default. Execute them
+explicitly with:
+
+```bash
+make test-integration
+```
 
 ### Model Registry
 

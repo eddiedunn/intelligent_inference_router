@@ -5,6 +5,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+pytestmark = pytest.mark.integration
+
 ROOT = Path(__file__).resolve().parents[1]
 
 if shutil.which("docker") is None:
