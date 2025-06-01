@@ -14,12 +14,12 @@ def test_chat_completions_dummy_response(tmp_path, monkeypatch) -> None:
     registry.create_tables()
     router_main.load_registry()
 
-    client = TestClient(router_main.app)
-    payload = {
-        "model": "dummy",
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["choices"][0]["message"]["content"] == "Hello world"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "dummy",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["choices"][0]["message"]["content"] == "Hello world"

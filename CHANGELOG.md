@@ -14,6 +14,7 @@
 - Model registry `kind` column with migration and CLI support
 - Unified provider architecture for API and weight-based providers
 - Example Hugging Face env vars in `.env.example`
+- Updated provider streaming logic for HTTPX 0.28 and closed TestClient sessions in tests
 
 
 

@@ -25,21 +25,20 @@ def test_cache_hit_skips_backend(monkeypatch, tmp_path):
         messages=[router_main.Message(role="user", content="hi")],
     )
 
-    cache_key = router_main.make_cache_key(payload)
-    router_main.CACHE_STORE[cache_key] = (
-        time.time() + router_main.CACHE_TTL,
-        json.dumps({"cached": True}),
-    )
-
     async def fail(_: router_main.ChatCompletionRequest):
         raise AssertionError("backend called")
 
     monkeypatch.setattr(router_main, "forward_to_local_agent", fail)
 
-    client = TestClient(router_main.app)
-    resp = client.post("/v1/chat/completions", json=payload.dict())
-    assert resp.status_code == 200
-    assert resp.json() == {"cached": True}
+    with TestClient(router_main.app) as client:
+        cache_key = router_main.make_cache_key(payload)
+        router_main.CACHE_STORE[cache_key] = (
+            time.time() + router_main.CACHE_TTL,
+            json.dumps({"cached": True}),
+        )
+        resp = client.post("/v1/chat/completions", json=payload.dict())
+        assert resp.status_code == 200
+        assert resp.json() == {"cached": True}
 
 
 def test_cache_store_and_hit(monkeypatch, tmp_path):
@@ -56,13 +55,13 @@ def test_cache_store_and_hit(monkeypatch, tmp_path):
         "messages": [{"role": "user", "content": "hi"}],
     }
 
-    client = TestClient(router_main.app)
-    resp1 = client.post("/v1/chat/completions", json=payload)
-    assert resp1.json() == {"data": 1}
+    with TestClient(router_main.app) as client:
+        resp1 = client.post("/v1/chat/completions", json=payload)
+        assert resp1.json() == {"data": 1}
 
-    async def fail(_: router_main.ChatCompletionRequest):
-        raise AssertionError("called twice")
+        async def fail(_: router_main.ChatCompletionRequest):
+            raise AssertionError("called twice")
 
-    monkeypatch.setattr(router_main, "forward_to_local_agent", fail)
-    resp2 = client.post("/v1/chat/completions", json=payload)
-    assert resp2.json() == {"data": 1}
+        monkeypatch.setattr(router_main, "forward_to_local_agent", fail)
+        resp2 = client.post("/v1/chat/completions", json=payload)
+        assert resp2.json() == {"data": 1}

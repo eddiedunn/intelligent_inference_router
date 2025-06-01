@@ -50,11 +50,11 @@ def test_forward_to_anthropic(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(router_main.httpx, "AsyncClient", client_factory)
 
-    client = TestClient(router_main.app)
-    payload = {
-        "model": "claude-3",
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code == 200
-    assert response.json()["choices"][0]["message"]["content"] == "Anthropic: hi"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "claude-3",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        assert response.json()["choices"][0]["message"]["content"] == "Anthropic: hi"

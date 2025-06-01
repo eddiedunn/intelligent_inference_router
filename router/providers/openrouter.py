@@ -5,7 +5,8 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..schemas import ChatCompletionRequest
-from ..utils import stream_resp
+from typing import AsyncIterator
+
 from .base import ApiProvider
 
 
@@ -20,21 +21,26 @@ class OpenRouterProvider(ApiProvider):
             raise HTTPException(status_code=500, detail="OpenRouter key not configured")
 
         headers = {"Authorization": f"Bearer {api_key}"}
+        path = "/api/v1/chat/completions"
+        if payload.stream:
+
+            async def gen() -> AsyncIterator[str]:
+                async with httpx.AsyncClient(base_url=base_url) as client:
+                    async with client.stream(
+                        "POST", path, json=payload.dict(), headers=headers
+                    ) as resp:
+                        try:
+                            resp.raise_for_status()
+                        except httpx.HTTPError as exc:  # coverage: ignore
+                            raise HTTPException(
+                                status_code=502, detail="External provider error"
+                            ) from exc
+                        async for chunk in resp.aiter_text():
+                            yield chunk
+
+            return StreamingResponse(gen(), media_type="text/event-stream")
+
         async with httpx.AsyncClient(base_url=base_url) as client:
-            path = "/api/v1/chat/completions"
-            if payload.stream:
-                resp = await client.post(  # type: ignore[call-arg]
-                    path, json=payload.dict(), headers=headers, stream=True
-                )
-                try:
-                    resp.raise_for_status()
-                except httpx.HTTPError as exc:  # coverage: ignore
-                    raise HTTPException(
-                        status_code=502, detail="External provider error"
-                    ) from exc
-                return StreamingResponse(
-                    stream_resp(resp), media_type="text/event-stream"
-                )
             resp = await client.post(path, json=payload.dict(), headers=headers)
             try:
                 resp.raise_for_status()
