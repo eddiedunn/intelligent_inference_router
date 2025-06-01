@@ -12,6 +12,7 @@ from .registry import (
     run_migrations,
     get_session,
     upsert_model,
+    list_models,
     clear_models,
     VALID_MODEL_TYPES,
 )
@@ -62,6 +63,17 @@ def add_model(name: str, type: str, endpoint: str, kind: str = "api") -> None:
 
     with get_session() as session:
         upsert_model(session, name, type, endpoint, kind)
+
+
+@app.command("list-models")
+def list_models_cmd() -> None:
+    """Print all registered models."""
+
+    with get_session() as session:
+        models = list_models(session)
+
+    for item in models:
+        typer.echo(f"{item.name}\t{item.type}\t{item.endpoint}\t{item.kind}")
 
 
 @app.command("refresh-openai")
