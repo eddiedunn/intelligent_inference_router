@@ -28,9 +28,9 @@ Any request whose `model` starts with `local` will be forwarded to this agent.
 
 ### Docker
 
-The development stack is defined in `docker-compose.yml` and includes the
-router service and a Redis instance. The SQLite model registry is stored in a
-named volume so data persists between runs.
+The development stack is defined in `docker-compose.yml` and now runs only the
+router service. Caching happens in-process using a TTL dictionary, and the
+SQLite model registry is stored in a named volume so data persists between runs.
 
 Start the stack with:
 

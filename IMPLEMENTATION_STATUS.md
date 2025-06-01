@@ -44,7 +44,7 @@ This section tracks features, integrations, and improvements planned for after t
 - [ ] Deploy llm-d via Helm
 - [ ] Expose Cluster Endpoint to Router
 - [ ] Additional Inference Worker Types (llm-d)
-- [ ] Caching (e.g., Redis caching)
+- [ ] Caching (in-memory TTL; Redis later)
 - [ ] Rate limiting
 - [ ] Hugging Face Provider Integration
 

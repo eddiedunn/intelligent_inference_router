@@ -85,7 +85,7 @@ might look like:
 
 ```bash
 SQLITE_DB_PATH=data/models.db
-REDIS_URL=redis://redis:6379/0
+# caching uses an in-memory TTL dictionary
 LOCAL_AGENT_URL=http://local_agent:5000
 OPENAI_BASE_URL=https://api.openai.com
 EXTERNAL_OPENAI_KEY=sk-...
@@ -182,10 +182,11 @@ accordingly.
 
 ---
 
-### Redis Caching
+### In-Memory Caching
 
-`REDIS_URL` and `CACHE_TTL` are defined for a planned caching layer, but the
-current implementation does not store responses in Redis.
+Responses are cached in-process using a simple TTL dictionary. This avoids the
+need for Redis during development. Future versions may support an external
+cache.
 
 
 ---
@@ -193,7 +194,7 @@ current implementation does not store responses in Redis.
 ## Post-MVP Roadmap
 
 The following features are planned for future releases:
-- Redis caching
+- External cache integration (e.g., Redis)
 - Rate limiting
 - Smart routing
 - Forwarding to llm-d cluster
