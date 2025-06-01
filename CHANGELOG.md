@@ -8,7 +8,7 @@
 ### Added
 
 - llm-d cluster support (`make k3s-up` and router forwarding)
-- Redis caching layer with TTL (`REDIS_URL`, `CACHE_TTL`)
+- In-memory caching layer with TTL (`CACHE_TTL`)
 - Venice provider forwarding support
 - Hugging Face weight provider for local models
 - Model registry `kind` column with migration and CLI support

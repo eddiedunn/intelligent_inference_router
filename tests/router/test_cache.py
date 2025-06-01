@@ -1,20 +1,9 @@
 import json
-
+import time
 from fastapi.testclient import TestClient
 import router.main as router_main
 import router.registry as registry
 from sqlalchemy import create_engine
-
-
-class FakeRedis:
-    def __init__(self) -> None:
-        self.db: dict[str, str] = {}
-
-    async def get(self, key: str):
-        return self.db.get(key)
-
-    async def setex(self, key: str, ttl: int, value: str):
-        self.db[key] = value
 
 
 def setup_db(monkeypatch, tmp_path):
@@ -29,9 +18,7 @@ def setup_db(monkeypatch, tmp_path):
 
 def test_cache_hit_skips_backend(monkeypatch, tmp_path):
     setup_db(monkeypatch, tmp_path)
-
-    fake = FakeRedis()
-    monkeypatch.setattr(router_main, "redis_client", fake)
+    router_main.CACHE_STORE.clear()
 
     payload = router_main.ChatCompletionRequest(
         model="local-test",
@@ -39,7 +26,10 @@ def test_cache_hit_skips_backend(monkeypatch, tmp_path):
     )
 
     cache_key = router_main.make_cache_key(payload)
-    fake.db[cache_key] = json.dumps({"cached": True})
+    router_main.CACHE_STORE[cache_key] = (
+        time.time() + router_main.CACHE_TTL,
+        json.dumps({"cached": True}),
+    )
 
     async def fail(_: router_main.ChatCompletionRequest):
         raise AssertionError("backend called")
@@ -54,9 +44,7 @@ def test_cache_hit_skips_backend(monkeypatch, tmp_path):
 
 def test_cache_store_and_hit(monkeypatch, tmp_path):
     setup_db(monkeypatch, tmp_path)
-
-    fake = FakeRedis()
-    monkeypatch.setattr(router_main, "redis_client", fake)
+    router_main.CACHE_STORE.clear()
 
     async def backend(_: router_main.ChatCompletionRequest):
         return {"data": 1}

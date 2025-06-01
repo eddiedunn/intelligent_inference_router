@@ -19,7 +19,6 @@
 
 **Explicitly NOT in MVP:**
 - llm-d/worker_cluster (Kubernetes GPU workers)
-- Redis caching
 - Rate limiting
 - Smart routing
 - Additional providers (Anthropic, Google, OpenRouter, Grok, Venice)
@@ -35,7 +34,7 @@ See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for the up-to-date s
 #     1. `router/`   – FastAPI gateway + smart routing logic (MVP: only vllm Docker, OpenAI proxy)
 #     2. `local_agent/` – macOS-native service for Apple-Silicon inference (MVP: only vllm Docker)
 #     3. `worker_cluster/` (post-MVP) – llm-d (vLLM) GPU workers on K8s
-# • Redis is used for caching (post-MVP), SQLite for the model registry & API keys.
+# • Caching currently uses an in-memory TTL dictionary; Redis integration is planned post-MVP. SQLite stores the model registry & API keys.
 # • Tests are in `tests/`, run with `pytest -q`.
 # • Activate the `.venv` created by the setup script before running any
 #   `make` command (e.g. `source .venv/bin/activate`).
@@ -114,9 +113,10 @@ Codex SHOULD invoke these targets rather than raw commands.
 | Var                | Purpose                                | Default |
 |--------------------|----------------------------------------|---------|
 | `SQLITE_DB_PATH`   | Path for model registry DB             | `data/models.db` |
-| `REDIS_URL`        | Redis connection string                | `redis://localhost:6379/0` |
 | `LLMD_ENDPOINT`    | Base URL for llm-d cluster             | unset   |
 | `EXTERNAL_*_KEY`   | API keys for external providers        | unset   |
+
+Caching uses a built-in in-memory TTL dictionary, so no external service is required.
 
 * **Tests**: `pytest -q tests/router`.
 

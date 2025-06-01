@@ -27,7 +27,6 @@ from prometheus_client import (
     generate_latest,
 )
 
-import redis.asyncio as redis
 
 from .utils import stream_resp
 from .providers import (
@@ -57,7 +56,6 @@ from .registry import (
 Message = SchemaMessage
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
@@ -105,7 +103,24 @@ REQUEST_LATENCY = Histogram(
 
 CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
 
-redis_client = redis.from_url(REDIS_URL)
+# Simple in-memory cache: {key: (expires_at, json_value)}
+CACHE_STORE: Dict[str, tuple[float, str]] = {}
+
+
+async def cache_get(key: str) -> str | None:
+    entry = CACHE_STORE.get(key)
+    if entry is None:
+        return None
+    expires, value = entry
+    if time.time() > expires:
+        CACHE_STORE.pop(key, None)
+        return None
+    return value
+
+
+async def cache_set(key: str, value: str, ttl: int = CACHE_TTL) -> None:
+    CACHE_STORE[key] = (time.time() + ttl, value)
+
 
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
 RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
@@ -197,6 +212,7 @@ def load_registry() -> None:
 @app.on_event("startup")
 async def _startup() -> None:
     load_registry()
+    CACHE_STORE.clear()
     log_dir = os.path.dirname(LOG_PATH)
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
@@ -266,7 +282,7 @@ def select_backend(payload: ChatCompletionRequest) -> str:
 
 
 def make_cache_key(payload: ChatCompletionRequest) -> str:
-    """Return a Redis cache key for the given request."""
+    """Return a cache key for the given request."""
 
     serialized = json.dumps(payload.dict(), sort_keys=True)
 
@@ -377,6 +393,18 @@ async def chat_completions(payload: ChatCompletionRequest):
     start = time.perf_counter()
     backend = "dummy"
     cache_hit = False
+    cache_key = make_cache_key(payload)
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        cache_hit = True
+        return json.loads(cached)
+
+    async def call_and_cache(func):
+        result = await func(payload)
+        if not payload.stream:
+            await cache_set(cache_key, json.dumps(result))
+        return result
+
     try:
         entry = MODEL_REGISTRY.get(payload.model)
 
@@ -384,36 +412,38 @@ async def chat_completions(payload: ChatCompletionRequest):
             backend = entry.type
             if entry.kind == "weight":
                 if entry.type == "local":
-                    return await forward_to_local_agent(payload)
+                    return await call_and_cache(forward_to_local_agent)
                 if entry.type == "llm-d":
                     return await forward_to_llmd(payload)
                 provider = get_weight_provider(entry.type)
-                return await provider.forward(payload, entry.endpoint)
+                return await call_and_cache(
+                    lambda p=payload: provider.forward(p, entry.endpoint)
+                )
 
             if entry.type == "local":
-                return await forward_to_local_agent(payload)
+                return await call_and_cache(forward_to_local_agent)
             if entry.type == "openai":
-                return await forward_to_openai(payload)
+                return await call_and_cache(forward_to_openai)
             if entry.type == "anthropic":
-                return await forward_to_anthropic(payload)
+                return await call_and_cache(forward_to_anthropic)
             if entry.type == "google":
-                return await forward_to_google(payload)
+                return await call_and_cache(forward_to_google)
             if entry.type == "openrouter":
-                return await forward_to_openrouter(payload)
+                return await call_and_cache(forward_to_openrouter)
             if entry.type == "grok":
-                return await forward_to_grok(payload)
+                return await call_and_cache(forward_to_grok)
             if entry.type == "venice":
-                return await forward_to_venice(payload)
+                return await call_and_cache(forward_to_venice)
             if entry.type == "llm-d":
                 return await forward_to_llmd(payload)
 
         if payload.model.startswith("local"):
             backend = "local"
-            return await forward_to_local_agent(payload)
+            return await call_and_cache(forward_to_local_agent)
 
         if payload.model.startswith("gpt-"):
             backend = "openai"
-            return await forward_to_openai(payload)
+            return await call_and_cache(forward_to_openai)
 
         dummy_text = "Hello world"
         response = {
@@ -434,6 +464,7 @@ async def chat_completions(payload: ChatCompletionRequest):
                 "total_tokens": 0,
             },
         }
+        await cache_set(cache_key, json.dumps(response))
         return response
     finally:
         latency = time.perf_counter() - start

@@ -30,7 +30,7 @@ These features are required for the MVP milestone. All other features are deferr
 
 ## ❌ Explicitly NOT in MVP
 
-- [ ] Enable Redis Caching
+- [ ] Enable In-Memory Caching
 - [ ] Rate Limiting
 - [ ] Smart Routing (intelligent request dispatch)
 - [x] Add Request Logging and Metrics
@@ -48,7 +48,7 @@ These features are required for the MVP milestone. All other features are deferr
 
 Remaining features planned for after the MVP:
 
-- Caching (e.g., Redis caching)
+- Caching (in-memory TTL dictionary; external cache later)
 - Rate limiting
 - Smart routing (intelligent request dispatch)
 - Forward to llm-d Cluster
@@ -95,15 +95,15 @@ so that I can use remote models when needed.
 - `curl` with real key returns provider output.
 **Dependencies/blocks:** Model registry entry for external provider.
 
-### Enable Redis Caching
+### Enable In-Memory Caching
 **MoSCoW:** Should
 **User story:** As a frequent caller I want identical prompts cached so that repeat requests return faster.
 **Acceptance criteria:**
-- ✅ Router checks Redis before forwarding a request.
+- ✅ Router checks the in-memory cache before forwarding a request.
 - ✅ Cached entries expire after a configurable TTL.
 - ✅ Cache key includes model name and prompt hash.
 **Implementation hints:**
-- Use `redis-py` with `REDIS_URL`.
+- Use an in-process dictionary with TTL.
 - Add `CACHE_TTL` env var.
 **Test cases:**
 - `pytest` ensures cache hit skips backend call.
@@ -241,14 +241,13 @@ so that the router updates its registry automatically.
 
 ### Docker Compose for Dev Stack
 **MoSCoW:** Should
-**User story:** As a contributor I want a single command to start router, Redis, and optional agent
-so that local testing is easy.
+**User story:** As a contributor I want a single command to start the router (and optional agent) so that local testing is easy.
 **Acceptance criteria:**
 - ✅ `make docker-dev` launches services via Docker Compose.
 - ✅ Env file `.env.example` documents required vars.
 - ✅ Stopping the stack cleans up all containers.
 **Implementation hints:**
-- Compose file includes router image, Redis, and volume for SQLite.
+- Compose file includes the router image and a volume for SQLite.
 - Mount Mac agent only when running on Darwin.
 **Test cases:**
 - `docker compose ps` shows all services running.

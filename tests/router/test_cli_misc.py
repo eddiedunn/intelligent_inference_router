@@ -52,7 +52,10 @@ def test_add_model(monkeypatch):
     monkeypatch.setattr(cli, "upsert_model", fake_upsert)
 
     runner = CliRunner()
-    result = runner.invoke(cli.app, ["add-model", "foo", "local", "http://x", "weight"])
+    result = runner.invoke(
+        cli.app,
+        ["add-model", "foo", "local", "http://x", "--kind", "weight"],
+    )
     assert result.exit_code == 0
     assert calls == [("foo", "local", "http://x", "weight")]
 
