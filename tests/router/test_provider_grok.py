@@ -69,14 +69,14 @@ def test_forward_to_grok(monkeypatch, tmp_path) -> None:
     setup_registry(monkeypatch, tmp_path)
     patch_http_client(monkeypatch)
 
-    client = TestClient(router_main.app)
-    payload = {
-        "model": "grok-model",
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code == 200
-    assert response.json()["choices"][0]["message"]["content"] == "Grok: hi"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "grok-model",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        assert response.json()["choices"][0]["message"]["content"] == "Grok: hi"
 
 
 def test_forward_to_grok_stream(monkeypatch, tmp_path) -> None:
@@ -86,17 +86,17 @@ def test_forward_to_grok_stream(monkeypatch, tmp_path) -> None:
     setup_registry(monkeypatch, tmp_path)
     patch_http_client(monkeypatch)
 
-    client = TestClient(router_main.app)
-    payload = {
-        "model": "grok-model",
-        "messages": [{"role": "user", "content": "hi"}],
-        "stream": True,
-    }
-    with client.stream("POST", "/v1/chat/completions", json=payload) as resp:
-        assert resp.status_code == 200
-        lines = list(resp.iter_lines())
-    decoded = [
-        line.decode() if isinstance(line, bytes) else line for line in lines if line
-    ]
-    assert any("Grok: hi" in line for line in decoded)
-    assert decoded[-1] == "data: [DONE]"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "grok-model",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        }
+        with client.stream("POST", "/v1/chat/completions", json=payload) as resp:
+            assert resp.status_code == 200
+            lines = list(resp.iter_lines())
+        decoded = [
+            line.decode() if isinstance(line, bytes) else line for line in lines if line
+        ]
+        assert any("Grok: hi" in line for line in decoded)
+        assert decoded[-1] == "data: [DONE]"

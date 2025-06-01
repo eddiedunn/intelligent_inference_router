@@ -30,8 +30,11 @@ def test_forward_to_weight_provider(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(provider, "_get_pipeline", lambda m: DummyPipe())
     router_main.WEIGHT_PROVIDERS.clear()
     router_main.WEIGHT_PROVIDERS["huggingface"] = provider
-    client = TestClient(router_main.app)
-    payload = {"model": "hf-model", "messages": [{"role": "user", "content": "hi"}]}
-    resp = client.post("/v1/chat/completions", json=payload)
-    assert resp.status_code == 200
-    assert resp.json()["choices"][0]["message"]["content"] == "HF: hi"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "hf-model",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        resp = client.post("/v1/chat/completions", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["choices"][0]["message"]["content"] == "HF: hi"

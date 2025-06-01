@@ -9,13 +9,16 @@ from sqlalchemy import create_engine
 
 
 def test_dummy_response_has_id_prefix() -> None:
-    client = TestClient(router_main.app)
-    payload = {"model": "dummy-model", "messages": [{"role": "user", "content": "hi"}]}
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"].startswith("cmpl-")
-    assert data["choices"][0]["message"]["content"] == "Hello world"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "dummy-model",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"].startswith("cmpl-")
+        assert data["choices"][0]["message"]["content"] == "Hello world"
 
 
 error_app = FastAPI()
@@ -48,14 +51,14 @@ def test_forward_to_local_agent_error(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(router_main.httpx, "AsyncClient", client_factory)
 
-    client = TestClient(router_main.app)
-    payload = {
-        "model": "local_mistral",
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code == 502
-    assert response.json()["detail"] == "Local agent error"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "local_mistral",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 502
+        assert response.json()["detail"] == "Local agent error"
 
 
 def test_forward_to_openai_missing_key(monkeypatch, tmp_path) -> None:
@@ -70,11 +73,11 @@ def test_forward_to_openai_missing_key(monkeypatch, tmp_path) -> None:
     with registry.get_session() as session:
         registry.upsert_model(session, "gpt-3.5-turbo", "openai", "unused", "api")
 
-    client = TestClient(router_main.app)
-    payload = {
-        "model": "gpt-3.5-turbo",
-        "messages": [{"role": "user", "content": "hi"}],
-    }
-    response = client.post("/v1/chat/completions", json=payload)
-    assert response.status_code == 500
-    assert response.json()["detail"] == "OpenAI key not configured"
+    with TestClient(router_main.app) as client:
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 500
+        assert response.json()["detail"] == "OpenAI key not configured"
