@@ -3,13 +3,13 @@ import pytest
 import local_agent.main as agent
 
 
+calls: list[tuple[str, dict]] = []
+
+
 async def dummy_post(path: str, payload: dict) -> None:
-    dummy_post.calls.append((path, payload))
-    if len(dummy_post.calls) >= 2:
+    calls.append((path, payload))
+    if len(calls) >= 2:
         raise asyncio.CancelledError()
-
-
-dummy_post.calls = []
 
 
 def test_heartbeat_loop(monkeypatch):
@@ -21,5 +21,5 @@ def test_heartbeat_loop(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(agent.heartbeat_loop())
 
-    assert dummy_post.calls[0] == ("/heartbeat", {"name": agent.AGENT_NAME})
-    assert len(dummy_post.calls) >= 2
+    assert calls[0] == ("/heartbeat", {"name": agent.AGENT_NAME})
+    assert len(calls) >= 2
