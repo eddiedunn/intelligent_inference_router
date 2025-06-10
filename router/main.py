@@ -22,6 +22,9 @@ from fastapi.responses import Response, StreamingResponse, JSONResponse
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from .auth import AuthMiddleware
+from .settings import settings
+
 from prometheus_client import (
     Counter,
     Histogram,
@@ -201,6 +204,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Intelligent Inference Router")
 app.add_middleware(RateLimitMiddleware)
+if settings.shared_secret:
+    app.add_middleware(AuthMiddleware)
 
 MODEL_REGISTRY: dict[str, ModelEntry] = {}
 

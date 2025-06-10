@@ -11,6 +11,7 @@ This API currently supports the following:
 - Local agent forwarding (only vllm, Docker-based workers)
 - Proxying to OpenAI
 - SQLite-backed model registry
+- Optional shared secret auth via the `Authorization` header
 
 
 **Note:** Features such as caching, rate limiting, smart routing,
@@ -104,6 +105,7 @@ HF_CACHE_DIR=data/hf_models
 HF_DEVICE=cpu
 HUGGING_FACE_HUB_TOKEN=
 RATE_LIMIT_REQUESTS=60
+ROUTER_SHARED_SECRET=
 ```
 
 
@@ -113,6 +115,9 @@ RATE_LIMIT_REQUESTS=60
 
 For OpenRouter, both `OPENROUTER_BASE_URL` and `EXTERNAL_OPENROUTER_KEY` must be
 set before the router can forward requests to the service.
+
+If `ROUTER_SHARED_SECRET` is set the router requires
+`Authorization: Bearer <secret>` on every request.
 
 The code defines a few tuning variables reserved for future smart routing.
 They can be set as environment variables or placed under `[tool.router]` in

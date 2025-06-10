@@ -14,4 +14,10 @@ curl -X POST http://localhost:8000/v1/chat/completions \
      -d '{"model":"local_mistral","messages":[{"role":"user","content":"hello"}]}'
 ```
 
+If `ROUTER_SHARED_SECRET` is configured, include an Authorization header:
+
+```bash
+curl -H 'Authorization: Bearer mysecret' ...
+```
+
 Requests for models prefixed with `local` are forwarded to the Local Agent.
