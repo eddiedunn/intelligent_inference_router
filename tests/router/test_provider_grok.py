@@ -43,7 +43,8 @@ async def _completion(payload: router_main.ChatCompletionRequest):
 
 def setup_registry(monkeypatch, tmp_path) -> None:
     db_path = tmp_path / "models.db"
-    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    monkeypatch.setenv("SQLITE_DB_PATH", str(db_path))
+    router_main.settings = router_main.Settings()
     registry.SQLITE_DB_PATH = str(db_path)
     registry.engine = create_engine(f"sqlite:///{db_path}")
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
@@ -63,8 +64,9 @@ def patch_http_client(monkeypatch):
 
 
 def test_forward_to_grok(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(router_main, "GROK_BASE_URL", "http://testserver")
-    monkeypatch.setattr(router_main, "EXTERNAL_GROK_KEY", "dummy")
+    monkeypatch.setenv("GROK_BASE_URL", "http://testserver")
+    monkeypatch.setenv("EXTERNAL_GROK_KEY", "dummy")
+    router_main.settings = router_main.Settings()
 
     setup_registry(monkeypatch, tmp_path)
     patch_http_client(monkeypatch)
@@ -80,8 +82,9 @@ def test_forward_to_grok(monkeypatch, tmp_path) -> None:
 
 
 def test_forward_to_grok_stream(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(router_main, "GROK_BASE_URL", "http://testserver")
-    monkeypatch.setattr(router_main, "EXTERNAL_GROK_KEY", "dummy")
+    monkeypatch.setenv("GROK_BASE_URL", "http://testserver")
+    monkeypatch.setenv("EXTERNAL_GROK_KEY", "dummy")
+    router_main.settings = router_main.Settings()
 
     setup_registry(monkeypatch, tmp_path)
     patch_http_client(monkeypatch)

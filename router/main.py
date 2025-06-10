@@ -45,6 +45,8 @@ from .providers.base import WeightProvider
 from .schemas import ChatCompletionRequest, Message as SchemaMessage
 from pydantic import BaseModel
 
+from .config import Settings
+
 
 from .registry import (
     ModelEntry,
@@ -57,33 +59,7 @@ from .registry import (
 
 Message = SchemaMessage
 
-SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/models.db")
-LOCAL_AGENT_URL = os.getenv("LOCAL_AGENT_URL", "http://localhost:5000")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
-EXTERNAL_OPENAI_KEY = os.getenv("EXTERNAL_OPENAI_KEY")
-# Base URL for the llm-d inference gateway (GPU worker cluster)
-LLMD_ENDPOINT = os.getenv("LLMD_ENDPOINT")
-
-
-ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
-EXTERNAL_ANTHROPIC_KEY = os.getenv("EXTERNAL_ANTHROPIC_KEY")
-
-GOOGLE_BASE_URL = os.getenv(
-    "GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com"
-)
-EXTERNAL_GOOGLE_KEY = os.getenv("EXTERNAL_GOOGLE_KEY")
-
-OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai")
-EXTERNAL_OPENROUTER_KEY = os.getenv("EXTERNAL_OPENROUTER_KEY")
-
-GROK_BASE_URL = os.getenv("GROK_BASE_URL", "https://api.groq.com")
-EXTERNAL_GROK_KEY = os.getenv("EXTERNAL_GROK_KEY")
-
-VENICE_BASE_URL = os.getenv("VENICE_BASE_URL", "https://api.venice.ai")
-EXTERNAL_VENICE_KEY = os.getenv("EXTERNAL_VENICE_KEY")
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_PATH = os.getenv("LOG_PATH", "logs/router.log")
+settings = Settings()
 
 logger = logging.getLogger("router")
 
@@ -103,9 +79,11 @@ REQUEST_LATENCY = Histogram(
     labelnames=["backend"],
 )
 
+
 # Cache configuration
 CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
 CACHE_ENDPOINT = os.getenv("CACHE_ENDPOINT")
+
 
 # Simple in-memory cache: {key: (expires_at, json_value)}
 CACHE_STORE: Dict[str, tuple[float, str]] = {}
@@ -152,8 +130,8 @@ async def cache_set(key: str, value: str, ttl: int = CACHE_TTL) -> None:
     CACHE_STORE[key] = (time.time() + ttl, value)
 
 
-RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
-RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+RATE_LIMIT_REQUESTS = settings.rate_limit_requests
+RATE_LIMIT_WINDOW = settings.rate_limit_window
 RATE_LIMIT_STATE: Dict[str, List[float]] = {}
 
 # Routing configuration weights
@@ -163,14 +141,12 @@ try:
 except Exception:
     _config = {}
 
-ROUTER_COST_WEIGHT = float(
-    os.getenv("ROUTER_COST_WEIGHT", _config.get("cost_weight", 1.0))
-)
+ROUTER_COST_WEIGHT = float(_config.get("cost_weight", settings.router_cost_weight))
 ROUTER_LATENCY_WEIGHT = float(
-    os.getenv("ROUTER_LATENCY_WEIGHT", _config.get("latency_weight", 1.0))
+    _config.get("latency_weight", settings.router_latency_weight)
 )
 ROUTER_COST_THRESHOLD = int(
-    os.getenv("ROUTER_COST_THRESHOLD", _config.get("cost_threshold", 1000))
+    _config.get("cost_threshold", settings.router_cost_threshold)
 )
 
 BACKEND_METRICS: Dict[str, Dict[str, float]] = {}
@@ -184,13 +160,12 @@ def get_weight_provider(name: str) -> WeightProvider:
 
     provider = WEIGHT_PROVIDERS.get(name)
     if provider is None:
-        try:
-            module = getattr(providers, name)
-        except AttributeError as exc:  # coverage: ignore -- defensive
+        module = providers.PROVIDER_REGISTRY.get(name)
+        if module is None:
             raise HTTPException(
                 status_code=500,
                 detail=f"Unsupported provider '{name}'",
-            ) from exc
+            )
         class_name = "".join(part.capitalize() for part in name.split("_")) + "Provider"
         provider_cls = getattr(module, class_name, None)
         if provider_cls is None:
@@ -241,18 +216,28 @@ def load_registry() -> None:
 
 @app.on_event("startup")
 async def _startup() -> None:
+    global settings
+    settings = Settings()
+    global CACHE_TTL, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW
+    global ROUTER_COST_WEIGHT, ROUTER_LATENCY_WEIGHT, ROUTER_COST_THRESHOLD
+    CACHE_TTL = settings.cache_ttl
+    RATE_LIMIT_REQUESTS = settings.rate_limit_requests
+    RATE_LIMIT_WINDOW = settings.rate_limit_window
+    ROUTER_COST_WEIGHT = settings.router_cost_weight
+    ROUTER_LATENCY_WEIGHT = settings.router_latency_weight
+    ROUTER_COST_THRESHOLD = settings.router_cost_threshold
     load_registry()
     CACHE_STORE.clear()
-    log_dir = os.path.dirname(LOG_PATH)
+    log_dir = os.path.dirname(settings.log_path)
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    file_handler = TimedRotatingFileHandler(LOG_PATH, when="D", interval=1)
+    file_handler = TimedRotatingFileHandler(settings.log_path, when="D", interval=1)
     file_handler.setFormatter(formatter)
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
-    logger.setLevel(LOG_LEVEL.upper())
+    logger.setLevel(settings.log_level.upper())
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
 
@@ -322,7 +307,7 @@ def make_cache_key(payload: ChatCompletionRequest) -> str:
 
 
 async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
-    async with httpx.AsyncClient(base_url=LOCAL_AGENT_URL) as client:
+    async with httpx.AsyncClient(base_url=settings.local_agent_url) as client:
         resp = await client.post("/infer", json=payload.dict())
         try:
             resp.raise_for_status()
@@ -334,16 +319,18 @@ async def forward_to_local_agent(payload: ChatCompletionRequest) -> dict:
 async def forward_to_openai(payload: ChatCompletionRequest):
     """Forward request to the OpenAI API."""
 
-    return await openai.forward(payload, OPENAI_BASE_URL, EXTERNAL_OPENAI_KEY)
+    return await openai.forward(
+        payload, settings.openai_base_url, settings.external_openai_key
+    )
 
 
 async def forward_to_llmd(payload: ChatCompletionRequest):
     """Forward request to the llm-d cluster."""
 
-    if LLMD_ENDPOINT is None:
+    if settings.llmd_endpoint is None:
         raise HTTPException(status_code=500, detail="LLMD_ENDPOINT not configured")
 
-    async with httpx.AsyncClient(base_url=LLMD_ENDPOINT) as client:
+    async with httpx.AsyncClient(base_url=settings.llmd_endpoint) as client:
         if payload.stream:
             resp = await client.post(  # type: ignore[call-arg]
                 "/v1/chat/completions",
@@ -367,33 +354,41 @@ async def forward_to_llmd(payload: ChatCompletionRequest):
 async def forward_to_anthropic(payload: ChatCompletionRequest):
     """Forward request to Anthropic."""
 
-    return await anthropic.forward(payload, ANTHROPIC_BASE_URL, EXTERNAL_ANTHROPIC_KEY)
+    return await anthropic.forward(
+        payload, settings.anthropic_base_url, settings.external_anthropic_key
+    )
 
 
 async def forward_to_google(payload: ChatCompletionRequest):
     """Forward request to Google."""
 
-    return await google.forward(payload, GOOGLE_BASE_URL, EXTERNAL_GOOGLE_KEY)
+    return await google.forward(
+        payload, settings.google_base_url, settings.external_google_key
+    )
 
 
 async def forward_to_openrouter(payload: ChatCompletionRequest):
     """Forward request to OpenRouter."""
 
     return await openrouter.forward(
-        payload, OPENROUTER_BASE_URL, EXTERNAL_OPENROUTER_KEY
+        payload, settings.openrouter_base_url, settings.external_openrouter_key
     )
 
 
 async def forward_to_grok(payload: ChatCompletionRequest):
     """Forward request to Grok."""
 
-    return await grok.forward(payload, GROK_BASE_URL, EXTERNAL_GROK_KEY)
+    return await grok.forward(
+        payload, settings.grok_base_url, settings.external_grok_key
+    )
 
 
 async def forward_to_venice(payload: ChatCompletionRequest):
     """Forward request to Venice."""
 
-    return await venice.forward(payload, VENICE_BASE_URL, EXTERNAL_VENICE_KEY)
+    return await venice.forward(
+        payload, settings.venice_base_url, settings.external_venice_key
+    )
 
 
 @app.post("/register")

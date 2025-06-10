@@ -80,8 +80,9 @@ This basic scheme will be replaced by smart routing in a future release.
 
 ### Configuration
 
-The router reads its configuration from environment variables. A sample `.env`
-might look like:
+The router reads its configuration from environment variables. These are
+documented in [Router Configuration](router_config.md) and parsed by the
+`router.config.Settings` class. A sample `.env` might look like:
 
 ```bash
 SQLITE_DB_PATH=data/models.db

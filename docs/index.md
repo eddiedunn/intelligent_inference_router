@@ -8,3 +8,4 @@ Welcome! This site hosts the documentation for the Intelligent Inference Router.
 - [Setup Guide](setup.md)
 - [Usage](usage.md)
 - [API Examples](api_examples.md)
+- [Router Configuration](router_config.md)

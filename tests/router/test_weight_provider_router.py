@@ -19,7 +19,8 @@ class DummyPipe:
 
 def test_forward_to_weight_provider(monkeypatch, tmp_path) -> None:
     db_path = tmp_path / "models.db"
-    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    monkeypatch.setenv("SQLITE_DB_PATH", str(db_path))
+    router_main.settings = router_main.Settings()
     registry.SQLITE_DB_PATH = str(db_path)
     registry.engine = create_engine(f"sqlite:///{db_path}")
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
