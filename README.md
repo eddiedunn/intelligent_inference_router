@@ -82,6 +82,17 @@ explicitly with:
 make test-integration
 ```
 
+### Linting
+
+Run static analysis with:
+
+```bash
+make lint
+```
+
+This target runs `ruff`, `black --check`, and `mypy` as specified in the
+`Makefile`.
+
 ### Model Registry
 
 Create the SQLite registry and seed default entries:
