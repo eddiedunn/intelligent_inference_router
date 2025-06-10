@@ -17,6 +17,7 @@
 - Updated provider streaming logic for HTTPX 0.28 and closed TestClient sessions in tests
 - CLI command `list-models` to display registry entries
 - Module-level docstrings across router and local agent modules
+- Optional external cache service with Dockerfile (`CACHE_ENDPOINT`)
 
 
 

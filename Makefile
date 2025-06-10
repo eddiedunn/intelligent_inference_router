@@ -1,4 +1,4 @@
-.PHONY: dev lint test test-integration migrate seed docker-dev docs-serve k3s-up
+.PHONY: dev lint test test-integration migrate seed docker-dev docs-serve k3s-up cache-service
 
 dev:
 	uvicorn router.main:app --reload --port 8000
@@ -25,6 +25,10 @@ docs-serve:
 
 docker-dev:
 	docker compose up
+
+cache-service:
+	docker build -t cache_service cache_service
+	docker run --rm -p 8600:8600 cache_service
 
 k3s-up:
 	k3d cluster create llmd --image rancher/k3s:v1.29.4-k3s1 --wait || true

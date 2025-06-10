@@ -103,7 +103,9 @@ REQUEST_LATENCY = Histogram(
     labelnames=["backend"],
 )
 
+# Cache configuration
 CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))
+CACHE_ENDPOINT = os.getenv("CACHE_ENDPOINT")
 
 # Simple in-memory cache: {key: (expires_at, json_value)}
 CACHE_STORE: Dict[str, tuple[float, str]] = {}
@@ -111,6 +113,16 @@ CACHE_STORE: Dict[str, tuple[float, str]] = {}
 
 async def cache_get(key: str) -> str | None:
     """Return cached value if present and not expired."""
+    if CACHE_ENDPOINT:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{CACHE_ENDPOINT}/{key}", timeout=2)
+            if resp.status_code == 200:
+                return resp.text
+            if resp.status_code != 404:
+                logger.warning("remote cache get failed: %s", resp.status_code)
+        except Exception:
+            logger.warning("remote cache unavailable; falling back to local")
 
     entry = CACHE_STORE.get(key)
     if entry is None:
@@ -124,6 +136,18 @@ async def cache_get(key: str) -> str | None:
 
 async def cache_set(key: str, value: str, ttl: int = CACHE_TTL) -> None:
     """Store a value in the cache for ``ttl`` seconds."""
+    if CACHE_ENDPOINT:
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.put(
+                    f"{CACHE_ENDPOINT}/{key}",
+                    params={"ttl": ttl},
+                    content=value,
+                    timeout=2,
+                )
+                return
+        except Exception:
+            logger.warning("remote cache set failed; storing locally")
 
     CACHE_STORE[key] = (time.time() + ttl, value)
 
