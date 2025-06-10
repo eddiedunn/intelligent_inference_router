@@ -24,6 +24,12 @@ class HuggingFaceProvider(WeightProvider):
         self._pipelines: Dict[str, Any] = {}
 
     def _get_pipeline(self, model_id: str):
+        """Return the text-generation pipeline for ``model_id``.
+
+        The model is downloaded from Hugging Face if it is not already
+        available locally. The resulting pipeline is cached in
+        ``self._pipelines`` and then returned.
+        """
         pipe = self._pipelines.get(model_id)
         if pipe is None:
             local_dir = os.path.join(self.cache_dir, model_id.replace("/", "_"))
