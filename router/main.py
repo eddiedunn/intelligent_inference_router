@@ -108,6 +108,8 @@ CACHE_STORE: Dict[str, tuple[float, str]] = {}
 
 
 async def cache_get(key: str) -> str | None:
+    """Return cached value if present and not expired."""
+
     entry = CACHE_STORE.get(key)
     if entry is None:
         return None
@@ -119,6 +121,8 @@ async def cache_get(key: str) -> str | None:
 
 
 async def cache_set(key: str, value: str, ttl: int = CACHE_TTL) -> None:
+    """Store a value in the cache for ``ttl`` seconds."""
+
     CACHE_STORE[key] = (time.time() + ttl, value)
 
 

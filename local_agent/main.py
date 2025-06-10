@@ -47,6 +47,8 @@ async def _post_with_retry(path: str, payload: dict) -> None:
 
 
 async def register_with_router() -> None:
+    """Register this agent with the router service."""
+
     payload = {
         "name": AGENT_NAME,
         "endpoint": AGENT_ENDPOINT,
@@ -56,6 +58,8 @@ async def register_with_router() -> None:
 
 
 async def heartbeat_loop() -> None:
+    """Send regular heartbeat messages to the router."""
+
     while True:
         await _post_with_retry("/heartbeat", {"name": AGENT_NAME})
         await asyncio.sleep(HEARTBEAT_INTERVAL)
@@ -63,12 +67,16 @@ async def heartbeat_loop() -> None:
 
 @app.on_event("startup")
 async def _startup() -> None:
+    """Start background registration and heartbeat tasks."""
+
     asyncio.create_task(register_with_router())
     asyncio.create_task(heartbeat_loop())
 
 
 @app.post("/infer")
 async def infer(payload: ChatCompletionRequest):
+    """Return a trivial echo response for the given request."""
+
     user_msg = payload.messages[-1].content if payload.messages else ""
     content = f"Echo: {user_msg}"
     response = {
