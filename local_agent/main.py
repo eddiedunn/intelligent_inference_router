@@ -1,3 +1,5 @@
+"""FastAPI service exposing local MPS-based inference."""
+
 from __future__ import annotations
 
 import asyncio

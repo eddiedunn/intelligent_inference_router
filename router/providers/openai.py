@@ -1,3 +1,5 @@
+"""Proxy to the OpenAI chat completions endpoint."""
+
 from __future__ import annotations
 
 import httpx

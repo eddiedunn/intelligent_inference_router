@@ -1,3 +1,5 @@
+"""Collection of provider implementations for external APIs."""
+
 from . import anthropic, google, openrouter, grok, venice, openai, huggingface
 from .base import ApiProvider, WeightProvider
 

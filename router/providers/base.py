@@ -1,3 +1,5 @@
+"""Base classes for provider implementations."""
+
 from __future__ import annotations
 
 from ..schemas import ChatCompletionRequest
