@@ -52,13 +52,20 @@ def test_get_weight_provider(monkeypatch):
             return {}
 
     dummy_module = types.SimpleNamespace(DummyProvider=Dummy)
-    monkeypatch.setattr(router_main.providers, "dummy", dummy_module, raising=False)
+    monkeypatch.setitem(router_main.providers.PROVIDER_REGISTRY, "dummy", dummy_module)
 
     router_main.WEIGHT_PROVIDERS.clear()
     provider1 = router_main.get_weight_provider("dummy")
     provider2 = router_main.get_weight_provider("dummy")
     assert isinstance(provider1, Dummy)
     assert provider1 is provider2
+    assert router_main.providers.PROVIDER_REGISTRY["dummy"] is dummy_module
 
     with pytest.raises(router_main.HTTPException):
         router_main.get_weight_provider("missing")
+
+
+def test_provider_registry_contains_defaults():
+    reg = router_main.providers.PROVIDER_REGISTRY
+    assert "openai" in reg
+    assert reg["openai"] is router_main.providers.openai

@@ -9,6 +9,8 @@ from fastapi.responses import StreamingResponse
 from ..schemas import ChatCompletionRequest
 from ..utils import stream_resp
 from .base import ApiProvider
+from . import register_provider
+import sys
 
 
 class OpenAIProvider(ApiProvider):
@@ -52,3 +54,6 @@ async def forward(payload: ChatCompletionRequest, base_url: str, api_key: str | 
     """Backward compatible wrapper for ``OpenAIProvider``."""
     provider = OpenAIProvider()
     return await provider.forward(payload, base_url, api_key)
+
+
+register_provider("openai", sys.modules[__name__])

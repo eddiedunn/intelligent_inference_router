@@ -13,6 +13,8 @@ from transformers import pipeline
 
 from ..schemas import ChatCompletionRequest
 from .base import WeightProvider
+from . import register_provider
+import sys
 
 
 class HuggingFaceProvider(WeightProvider):
@@ -82,3 +84,6 @@ async def forward(payload: ChatCompletionRequest, base_url: str) -> dict:
 
     provider = HuggingFaceProvider()
     return await provider.forward(payload, base_url)
+
+
+register_provider("huggingface", sys.modules[__name__])

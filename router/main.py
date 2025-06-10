@@ -134,13 +134,12 @@ def get_weight_provider(name: str) -> WeightProvider:
 
     provider = WEIGHT_PROVIDERS.get(name)
     if provider is None:
-        try:
-            module = getattr(providers, name)
-        except AttributeError as exc:  # coverage: ignore -- defensive
+        module = providers.PROVIDER_REGISTRY.get(name)
+        if module is None:
             raise HTTPException(
                 status_code=500,
                 detail=f"Unsupported provider '{name}'",
-            ) from exc
+            )
         class_name = "".join(part.capitalize() for part in name.split("_")) + "Provider"
         provider_cls = getattr(module, class_name, None)
         if provider_cls is None:
