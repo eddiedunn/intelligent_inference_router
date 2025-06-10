@@ -1,3 +1,5 @@
+"""Forwarder for OpenRouter provider API."""
+
 from __future__ import annotations
 
 import httpx

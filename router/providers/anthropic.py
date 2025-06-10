@@ -1,3 +1,5 @@
+"""Forwarder for Anthropic provider API."""
+
 from __future__ import annotations
 
 import httpx

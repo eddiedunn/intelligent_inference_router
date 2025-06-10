@@ -1,3 +1,5 @@
+"""Router entry point handling provider forwarding and caching."""
+
 from __future__ import annotations
 
 import os

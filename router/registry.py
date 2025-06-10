@@ -1,3 +1,5 @@
+"""SQLite-backed model registry for routing."""
+
 from __future__ import annotations
 
 import os
