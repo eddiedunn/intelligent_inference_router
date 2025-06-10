@@ -1,5 +1,7 @@
 # Intelligent Inference Router
 
+> **For the authoritative MVP/post-MVP feature list, see [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).**
+
 This project provides a prototype OpenAI-compatible API gateway. Requests may be
 forwarded to local agents, proxied to external providers such as OpenAI, or
 resolved using the built-in SQLite model registry.
