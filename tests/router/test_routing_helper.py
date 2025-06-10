@@ -3,9 +3,10 @@ import router.registry as registry
 from sqlalchemy import create_engine
 
 
-def init_db(tmp_path):
+def init_db(monkeypatch, tmp_path):
     db_path = tmp_path / "models.db"
-    router_main.SQLITE_DB_PATH = str(db_path)
+    monkeypatch.setenv("SQLITE_DB_PATH", str(db_path))
+    router_main.settings = router_main.Settings()
     registry.SQLITE_DB_PATH = str(db_path)
     registry.engine = create_engine(f"sqlite:///{db_path}")
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
@@ -15,7 +16,7 @@ def init_db(tmp_path):
 
 
 def test_select_backend_registry(monkeypatch, tmp_path):
-    init_db(tmp_path)
+    init_db(monkeypatch, tmp_path)
     with registry.get_session() as session:
         registry.upsert_model(session, "gpt-test", "openai", "unused", "api")
     router_main.load_registry()
@@ -29,7 +30,8 @@ def test_select_backend_prefix():
 
 
 def test_select_backend_cost_threshold(monkeypatch):
-    monkeypatch.setattr(router_main, "ROUTER_COST_THRESHOLD", 5)
+    monkeypatch.setenv("ROUTER_COST_THRESHOLD", "5")
+    router_main.settings = router_main.Settings()
     payload = router_main.ChatCompletionRequest(
         model="gpt-any",
         messages=[router_main.Message(role="user", content="x" * 10)],
@@ -39,7 +41,8 @@ def test_select_backend_cost_threshold(monkeypatch):
 
 
 def test_select_backend_latency(monkeypatch):
-    monkeypatch.setattr(router_main, "ROUTER_COST_THRESHOLD", 100)
+    monkeypatch.setenv("ROUTER_COST_THRESHOLD", "100")
+    router_main.settings = router_main.Settings()
     router_main.BACKEND_METRICS["local"] = {"latency": 2.0, "count": 1}
     router_main.BACKEND_METRICS["openai"] = {"latency": 0.1, "count": 1}
     payload = router_main.ChatCompletionRequest(

@@ -17,4 +17,5 @@ nav:
   - Usage: usage.md
   - Local Agent: local_agent.md
   - API Examples: api_examples.md
+  - Router Configuration: router_config.md
   - Router API: router_api.md
