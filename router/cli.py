@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import time
 
 import httpx
 import typer
@@ -101,6 +102,46 @@ def refresh_openai() -> None:
                 upsert_model(session, model_id, "openai", base_url, "api")
 
     typer.echo(f"Inserted {len(data)} models")
+
+
+@app.command("show-logs")
+def show_logs(
+    path: Path | None = typer.Argument(None),
+    follow: bool = True,
+) -> None:
+    """Tail the router log file."""
+
+    file_path = (
+        path if path is not None else Path(os.getenv("LOG_PATH", "logs/router.log"))
+    )
+    if not file_path.exists():
+        typer.echo(f"Log file '{file_path}' not found", err=True)
+        raise typer.Exit(1)
+
+    with file_path.open() as fh:
+        if follow:
+            fh.seek(0, os.SEEK_END)
+            try:
+                while True:
+                    line = fh.readline()
+                    if not line:
+                        time.sleep(0.5)
+                        continue
+                    typer.echo(line, nl=False)
+            except KeyboardInterrupt:
+                pass
+        else:
+            for line in fh:
+                typer.echo(line, nl=False)
+
+
+@app.command("export-metrics")
+def export_metrics(url: str = "http://localhost:8000/metrics") -> None:
+    """Fetch metrics from the router and print them."""
+
+    resp = httpx.get(url, timeout=10)
+    resp.raise_for_status()
+    typer.echo(resp.text)
 
 
 if __name__ == "__main__":

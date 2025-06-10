@@ -222,3 +222,17 @@ The router exposes Prometheus metrics at `/metrics`. Basic counters
 track request volume, latency and cache hits. Logs are written to
 `logs/router.log` and rotated daily. Configure the log level via the
 `LOG_LEVEL` environment variable.
+
+Tail the log file using the CLI:
+
+```bash
+python -m router.cli show-logs --no-follow
+```
+
+Use `--follow` to stream updates or pass a custom path.
+
+Export metrics in Prometheus format:
+
+```bash
+python -m router.cli export-metrics
+```
