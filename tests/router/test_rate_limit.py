@@ -3,8 +3,9 @@ import router.main as router_main
 
 
 def test_rate_limit(monkeypatch):
-    monkeypatch.setattr(router_main, "RATE_LIMIT_REQUESTS", 2)
-    monkeypatch.setattr(router_main, "RATE_LIMIT_WINDOW", 60)
+    monkeypatch.setenv("RATE_LIMIT_REQUESTS", "2")
+    monkeypatch.setenv("RATE_LIMIT_WINDOW", "60")
+    router_main.settings = router_main.Settings()
     router_main.RATE_LIMIT_STATE.clear()
     with TestClient(router_main.app) as client:
         payload = {"model": "dummy", "messages": [{"role": "user", "content": "hi"}]}

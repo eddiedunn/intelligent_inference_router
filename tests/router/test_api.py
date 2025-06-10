@@ -7,7 +7,8 @@ from sqlalchemy import create_engine
 
 def test_chat_completions_dummy_response(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "models.db"
-    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    monkeypatch.setenv("SQLITE_DB_PATH", str(db_path))
+    router_main.settings = router_main.Settings()
     registry.SQLITE_DB_PATH = str(db_path)
     registry.engine = create_engine(f"sqlite:///{db_path}")
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)

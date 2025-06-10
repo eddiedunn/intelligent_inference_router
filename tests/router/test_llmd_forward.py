@@ -30,10 +30,12 @@ async def _completion(payload: router_main.ChatCompletionRequest):
 
 
 def test_forward_to_llmd(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(router_main, "LLMD_ENDPOINT", "http://testserver")
+    monkeypatch.setenv("LLMD_ENDPOINT", "http://testserver")
+    router_main.settings = router_main.Settings()
 
     db_path = tmp_path / "models.db"
-    monkeypatch.setattr(router_main, "SQLITE_DB_PATH", str(db_path))
+    monkeypatch.setenv("SQLITE_DB_PATH", str(db_path))
+    router_main.settings = router_main.Settings()
     registry.SQLITE_DB_PATH = str(db_path)
     registry.engine = create_engine(f"sqlite:///{db_path}")
     registry.SessionLocal = registry.sessionmaker(bind=registry.engine)
