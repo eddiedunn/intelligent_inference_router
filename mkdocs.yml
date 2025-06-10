@@ -10,8 +10,9 @@ theme:
     accent: indigo
 nav:
   - Home: index.md
-  - Product Requirements: ../PRD.md
+  - Product Requirements: PRD.md
   - Feature Checklist: FEATURES.md
+  - Cluster Setup: cluster_setup.md
   - Setup: setup.md
   - Usage: usage.md
   - Local Agent: local_agent.md
