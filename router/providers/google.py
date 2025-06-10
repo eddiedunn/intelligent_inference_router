@@ -10,6 +10,8 @@ from ..schemas import ChatCompletionRequest
 from typing import AsyncIterator
 
 from .base import ApiProvider
+from . import register_provider
+import sys
 
 
 class GoogleProvider(ApiProvider):
@@ -61,3 +63,6 @@ async def forward(payload: ChatCompletionRequest, base_url: str, api_key: str | 
     """Backward compatible wrapper for ``GoogleProvider``."""
     provider = GoogleProvider()
     return await provider.forward(payload, base_url, api_key)
+
+
+register_provider("google", sys.modules[__name__])
