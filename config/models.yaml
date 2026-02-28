@@ -1,0 +1,63 @@
+models:
+  ollama/llama3.2:
+    provider: ollama
+    capabilities: [general_chat, simple_chat, summarization]
+    context_length: 128000
+    cost_per_1m_input_tokens: 0.0
+    cost_per_1m_output_tokens: 0.0
+    quality_tier: good
+    supports_vision: false
+    supports_tools: false
+
+  groq/llama-3.3-70b-versatile:
+    provider: groq
+    capabilities: [general_chat, coding, analysis]
+    context_length: 128000
+    cost_per_1m_input_tokens: 0.59
+    cost_per_1m_output_tokens: 0.79
+    quality_tier: great
+    supports_vision: false
+    supports_tools: true
+
+  openai/gpt-4o-mini:
+    provider: openai
+    capabilities: [general_chat, coding, analysis, creative_writing, translation]
+    context_length: 128000
+    cost_per_1m_input_tokens: 0.15
+    cost_per_1m_output_tokens: 0.60
+    quality_tier: great
+    supports_vision: true
+    supports_tools: true
+
+  openai/gpt-4o:
+    provider: openai
+    capabilities: [general_chat, coding, analysis, creative_writing, math, vision, function_calling]
+    context_length: 128000
+    cost_per_1m_input_tokens: 2.50
+    cost_per_1m_output_tokens: 10.00
+    quality_tier: excellent
+    supports_vision: true
+    supports_tools: true
+
+  anthropic/claude-sonnet-4-20250514:
+    provider: anthropic
+    capabilities: [coding, analysis, creative_writing, long_context]
+    context_length: 200000
+    cost_per_1m_input_tokens: 3.00
+    cost_per_1m_output_tokens: 15.00
+    quality_tier: excellent
+    supports_vision: true
+    supports_tools: true
+
+task_routing:
+  simple_chat: ollama/llama3.2
+  general_chat: ollama/llama3.2
+  coding: anthropic/claude-sonnet-4-20250514
+  analysis: openai/gpt-4o
+  creative_writing: anthropic/claude-sonnet-4-20250514
+  summarization: ollama/llama3.2
+  translation: openai/gpt-4o-mini
+  math: openai/gpt-4o
+  vision: openai/gpt-4o
+  function_calling: openai/gpt-4o
+  long_context: anthropic/claude-sonnet-4-20250514

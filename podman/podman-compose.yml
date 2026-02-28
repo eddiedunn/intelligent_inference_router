@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  router:
+    build:
+      context: ..
+      dockerfile: podman/Containerfile.router
+    ports:
+      - "8000:8000"
+    environment:
+      - IIR_BIFROST_URL=http://localhost:8080
+      - IIR_OLLAMA_URL=http://localhost:11434
+      - IIR_REDIS_URL=redis://localhost:6379/0
+      - IIR_API_KEY=${IIR_API_KEY}
+      - IIR_LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    volumes:
+      - ../persistent-data:/app/persistent-data
+    depends_on:
+      - bifrost
+      - ollama
+      - redis
+
+  bifrost:
+    image: docker.io/maximhq/bifrost:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./bifrost/data:/app/data
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+
+  redis:
+    image: docker.io/redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  prometheus:
+    image: docker.io/prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: docker.io/grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+
+volumes:
+  ollama-models:

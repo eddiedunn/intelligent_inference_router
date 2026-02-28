@@ -1,0 +1,41 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+  log_level: "INFO"
+
+bifrost:
+  url: "http://localhost:8080"
+  timeout_seconds: 120
+
+ollama:
+  url: "http://localhost:11434"
+  classifier_model: "llama3.2:1b"
+  pull_on_startup: true
+
+redis:
+  url: "redis://localhost:6379/0"
+  classification_cache_ttl: 3600
+  fallback_to_memory: true
+
+auth:
+  db_path: "./persistent-data/api_keys.sqlite3"
+  require_auth: true
+
+rate_limiting:
+  enabled: true
+  requests_per_minute: 200
+
+classifier:
+  strategy: "hybrid"
+
+routing:
+  default_strategy: "cost-optimized"
+  cost:
+    max_cost_per_request: 0.10
+    prefer_local_under_tokens: 2000
+
+body_limit:
+  max_size_bytes: 1048576
+
+secret_scrubbing:
+  enabled: true
